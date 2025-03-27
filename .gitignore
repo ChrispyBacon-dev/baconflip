@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+.idea/
+.vscode/
+
+# Docker
+docker-compose.override.yml
+
+# Environment variables
+.env
+
+# Data persistence
+redis_data/

@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  baconflip-bot:
+    build: . # Build from the Dockerfile in the current directory
+    container_name: baconflip-bot
+    restart: unless-stopped
+    env_file: .env # Load environment variables from .env file
+    networks:
+      - bot-network
+    depends_on:
+      - redis # Ensure Redis starts before the bot
+    logging: # Optional: Configure logging driver if needed
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine # Using version 7 alpine image
+    container_name: redis-baconflip
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data # Persist Redis data on the host
+    networks:
+      - bot-network
+    # Uncomment below if you set a password in Redis config/command
+    # command: redis-server --requirepass YOUR_REDIS_PASSWORD
+    healthcheck: # Optional: Check if Redis is running
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis_data: # Define the volume for persistence
+
+networks:
+  bot-network: # Define the shared network
+    driver: bridge
