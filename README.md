@@ -12,23 +12,25 @@ Core features include:
 *   Deployment via Docker Compose.
 
 ## Project Structure
+
+```text
 baconflip-bot/
-├── bot/ # Main bot code
-│ ├── init.py
-│ ├── bot.py # Core bot logic, event handlers
-│ ├── cogs/ # Command modules (Cogs)
-│ │ ├── init.py
-│ │ ├── fun_cog.py
-│ │ └── admin_cog.py
-│ └── utils/ # Utility functions
-│ ├── init.py
-│ └── history.py # Redis interactions (history, mute)
-├── .env.example # Example environment variables file <<< CONFIGURE THIS
+├── bot/                  # Main bot code
+│   ├── __init__.py
+│   ├── bot.py            # Core bot logic, event handlers
+│   ├── cogs/             # Command modules (Cogs)
+│   │   ├── __init__.py
+│   │   ├── fun_cog.py
+│   │   └── admin_cog.py
+│   └── utils/            # Utility functions
+│       ├── __init__.py
+│       └── history.py    # Redis interactions (history, mute)
+├── .env.example          # Example environment variables file <<< CONFIGURE THIS
 ├── .gitignore
-├── Dockerfile # Docker image definition for the bot
-├── docker-compose.yml # Docker Compose setup for bot and Redis
-├── README.md # This file
-└── requirements.txt # Python dependencies
+├── Dockerfile            # Docker image definition for the bot
+├── docker-compose.yml    # Docker Compose setup for bot and Redis
+├── README.md             # This file
+└── requirements.txt      # Python dependencies
 
 ## Setup and Installation
 
