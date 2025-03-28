@@ -1,0 +1,42 @@
+name: Update Docker Hub Description
+
+on:
+  push:
+    branches:
+      - main  # Trigger when changes are pushed to the main branch
+
+jobs:
+  update_description:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'  # Or your preferred Python version
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Get README Content
+        id: get_readme
+        run: |
+          README_CONTENT=$(curl -s "https://raw.githubusercontent.com/${{ github.repository }}/main/README.md")
+          echo "::set-output name=content::$README_CONTENT"
+
+      - name: Update Docker Hub Description
+        run: |
+          USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+          PASSWORD="${{ secrets.DOCKERHUB_TOKEN }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+
+          API_URL="https://hub.docker.com/v2/repositories/${USERNAME}/${REPO_NAME}/"
+          DATA='{"description": "${{ steps.get_readme.outputs.content }}"}'
+
+          curl -s -X PATCH \
+            -H "Content-Type: application/json" \
+            -u "${USERNAME}:${PASSWORD}" \
+            -d "$DATA" \
+            "$API_URL"
