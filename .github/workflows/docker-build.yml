@@ -27,4 +27,4 @@
             push: true
             tags: |
               alplat/baconflip:latest
-              alplat/baconflip:${{ github.sha }}  # Tag with the commit SHA
+              alplat/baconflip:${{ github.sha }}
