@@ -1,7 +1,7 @@
  # BaconFlip - Your Personality-Driven, LiteLLM-Powered Discord Bot
 
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docker Image Size (latest semver)](https://img.shields.io/docker/image-size/ChrispyBacon/baconflip/latest)](https://hub.docker.com/r/ChristpyBacon/baconflip)
+[![Docker Image Size (latest semver)](https://img.shields.io/docker/image-size/alplat/baconflip/latest)](https://hub.docker.com/r/alplat/baconflip)
 [![GitHub Stars](https://img.shields.io/github/stars/ChrispyBacon-dev/BaconFlip?style=social)](https://github.com/ChrispyBacon-dev/BaconFlip)
 
 **Tired of generic Discord bots? Ready to unleash the full power of cutting-edge AI with your *own* unique twist?**
