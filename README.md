@@ -23,7 +23,7 @@ Core features include:
 
 1.  **Clone the Repository:**
     ```bash
-    git clone <your-repo-url>
+    git clone https://github.com/ChrispyBacon-dev/baconflip.git
     cd baconflip-bot
     ```
 2.  **Create Discord Bot Application:**

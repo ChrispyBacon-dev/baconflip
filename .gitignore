@@ -1,22 +1,38 @@
-# Python
+# Environment variables
+.env
+
+# Python cache/compiled files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
+*.egg-info/
+dist/
+build/
+
+# Docker data volumes (if mapped locally for testing)
+redis_data/
+
+# IDE specific folders
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Virtual environment folders
 env/
 venv/
 ENV/
-pip-log.txt
-pip-delete-this-directory.txt
-.idea/
-.vscode/
+.env/
+.venv/
 
-# Docker
-docker-compose.override.yml
+# Logs
+*.log
+logs/
 
-# Environment variables
-.env
-
-# Data persistence
-redis_data/
+# OS generated files
+.DS_Store
+Thumbs.db
