@@ -38,6 +38,14 @@ BaconFlip isn't just another chat bot; it's a highly customizable framework buil
 *   A running `liteLLM` proxy instance accessible from where the bot will run. [Project on Github](https://github.com/BerriAI/litellm)
 *   A Discord Bot Application created via the [Discord Developer Portal](https://discord.com/developers/applications).
 
+**Deployment Options:**
+
+You can build your BaconFlip Discord Bot or deploy by the docker image. Choose the method that best suits your environment and needs.  Docker provides a more isolated and consistent environment.
+
+For Docker deployment go here https://hub.docker.com/r/alplat/baconflip
+
+**Option 2: Local Docker image building**
+
 **Steps:**
 
 1.  **Clone the Repository:**
