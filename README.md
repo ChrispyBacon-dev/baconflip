@@ -118,3 +118,22 @@ baconflip-bot/
 ├── docker-compose.yml    # Docker Compose setup for bot and Redis
 ├── README.md             # This file
 └── requirements.txt      # Python dependencies
+```
+## Contributing
+
+Contributions are welcome! Please feel free to submit pull requests with bug fixes, new features, or improvements to the documentation.
+
+1.  Fork the repository.
+2.  Create a new branch for your feature.
+3.  Make your changes.
+4.  Submit a pull request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+*   [Nextcord](https://github.com/nextcord/nextcord): For providing the Discord API wrapper.
+*   [LiteLLM](https://github.com/BerriAI/litellm): For enabling easy access to multiple LLMs.
+*   [Redis](https://redis.io/): For providing the in-memory data store for conversation history.
