@@ -1,10 +1,14 @@
-      # BaconFlip - Your Personality-Driven, LiteLLM-Powered Discord Bot
+ # BaconFlip - Your Personality-Driven, LiteLLM-Powered Discord Bot
+
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker Image Size (latest semver)](https://img.shields.io/docker/image-size/ChrispyBacon/baconflip/latest)](https://hub.docker.com/r/ChristpyBacon/baconflip)  <!-- Replace with your DockerHub info -->
+[![GitHub Stars](https://img.shields.io/github/stars/ChrispyBacon-dev/BaconFlip?style=social)](https://github.com/ChrispyBacon-dev/BaconFlip) <!-- Replace with your Github info -->
 
 **Tired of generic Discord bots? Ready to unleash the full power of cutting-edge AI with your *own* unique twist?**
 
 BaconFlip isn't just another chat bot; it's a highly customizable framework built with Python (`Nextcord`) designed to connect seamlessly to virtually **any Large Language Model (LLM)** via a `liteLLM` proxy. Whether you want to chat with GPT-4o, Gemini, Claude, Llama, or your own local models, BaconFlip provides the bridge.
 
-**Why Check Out BaconFlip?**
+## Why Check Out BaconFlip?
 
 *   🧠 **Universal LLM Access:** Stop being locked into one AI provider. `liteLLM` lets you switch models easily.
 *   🎭 **Deep Personality Customization:** Define your bot's unique character, quirks, and speaking style with a simple `LLM_SYSTEM_PROMPT` in the config. Want a flirty bacon bot? A stoic philosopher? A pirate captain? Go wild!
@@ -14,7 +18,7 @@ BaconFlip isn't just another chat bot; it's a highly customizable framework buil
 *   🎉 **Fun & Dynamic Features:** Includes LLM-powered commands like `!8ball` and unique, AI-generated welcome messages alongside standard utilities.
 *   ⚙️ **Solid Foundation:** Built with modern Python practices (`asyncio`, Cogs) making it a great base for adding your own features.
 
-**Core Features Include:**
+## Core Features Include:
 
 *   LLM chat interaction (via Mention, Name Trigger, or Reply)
 *   Redis-backed conversation history
