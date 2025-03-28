@@ -26,5 +26,5 @@ jobs:
           context: .
           push: true
           tags: |
-            your-dockerhub-username/baconflip:latest
-            your-dockerhub-username/baconflip:${{ github.sha }}
+            alplat/baconflip:latest
+            alplat/baconflip:${{ github.sha }}
