@@ -1,30 +1,30 @@
-  name: Docker Image Build and Push
+name: Docker Image Build and Push
 
-  on:
-    push:
-      branches: [ "main" ]  # Trigger on pushes to the main branch
-    pull_request:
-      branches: [ "main" ]  # Trigger on pull requests to the main branch
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
-  jobs:
-    build:
-      runs-on: ubuntu-latest
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-      steps:
-        - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-        - name: Log in to Docker Hub
-          uses: docker/login-action@v2
-          with:
-            username: ${{ secrets.DOCKERHUB_USERNAME }}
-            password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-        - name: Build and Push Docker Image
-          id: docker_build
-          uses: docker/build-push-action@v3
-          with:
-            context: .
-            push: true
-            tags: |
-              alplat/baconflip:latest
-              alplat/baconflip:${{ github.sha }}
+      - name: Build and Push Docker Image
+        id: docker_build
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: |
+            your-dockerhub-username/baconflip:latest
+            your-dockerhub-username/baconflip:${{ github.sha }}
