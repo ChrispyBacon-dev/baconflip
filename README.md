@@ -1,8 +1,8 @@
  # BaconFlip - Your Personality-Driven, LiteLLM-Powered Discord Bot
 
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docker Image Size (latest semver)](https://img.shields.io/docker/image-size/ChrispyBacon/baconflip/latest)](https://hub.docker.com/r/ChristpyBacon/baconflip)  <!-- Replace with your DockerHub info -->
-[![GitHub Stars](https://img.shields.io/github/stars/ChrispyBacon-dev/BaconFlip?style=social)](https://github.com/ChrispyBacon-dev/BaconFlip) <!-- Replace with your Github info -->
+[![Docker Image Size (latest semver)](https://img.shields.io/docker/image-size/ChrispyBacon/baconflip/latest)](https://hub.docker.com/r/ChristpyBacon/baconflip)
+[![GitHub Stars](https://img.shields.io/github/stars/ChrispyBacon-dev/BaconFlip?style=social)](https://github.com/ChrispyBacon-dev/BaconFlip)
 
 **Tired of generic Discord bots? Ready to unleash the full power of cutting-edge AI with your *own* unique twist?**
 
@@ -10,13 +10,13 @@ BaconFlip isn't just another chat bot; it's a highly customizable framework buil
 
 ## Why Check Out BaconFlip?
 
-*   🧠 **Universal LLM Access:** Stop being locked into one AI provider. `liteLLM` lets you switch models easily.
-*   🎭 **Deep Personality Customization:** Define your bot's unique character, quirks, and speaking style with a simple `LLM_SYSTEM_PROMPT` in the config. Want a flirty bacon bot? A stoic philosopher? A pirate captain? Go wild!
-*   💬 **Real Conversations:** Thanks to Redis-backed memory, BaconFlip remembers recent interactions per-user, leading to more natural and engaging follow-up conversations.
-*   🚀 **Easy Docker Deployment:** Get the bot (and its Redis dependency) running quickly and reliably using Docker Compose.
-*   🔧 **Flexible Interaction:** Engage the bot via `@mention`, its configurable name (`BOT_TRIGGER_NAME`), or simply by replying to its messages.
-*   🎉 **Fun & Dynamic Features:** Includes LLM-powered commands like `!8ball` and unique, AI-generated welcome messages alongside standard utilities.
-*   ⚙️ **Solid Foundation:** Built with modern Python practices (`asyncio`, Cogs) making it a great base for adding your own features.
+*   **Universal LLM Access:** Stop being locked into one AI provider. `liteLLM` lets you switch models easily.
+*   **Deep Personality Customization:** Define your bot's unique character, quirks, and speaking style with a simple `LLM_SYSTEM_PROMPT` in the config. Want a flirty bacon bot? A stoic philosopher? A pirate captain? Go wild!
+*   **Real Conversations:** Thanks to Redis-backed memory, BaconFlip remembers recent interactions per-user, leading to more natural and engaging follow-up conversations.
+*   **Easy Docker Deployment:** Get the bot (and its Redis dependency) running quickly and reliably using Docker Compose.
+*   **Flexible Interaction:** Engage the bot via `@mention`, its configurable name (`BOT_TRIGGER_NAME`), or simply by replying to its messages.
+*   **Fun & Dynamic Features:** Includes LLM-powered commands like `!8ball` and unique, AI-generated welcome messages alongside standard utilities.
+*   **Solid Foundation:** Built with modern Python practices (`asyncio`, Cogs) making it a great base for adding your own features.
 
 ## Core Features Include:
 
@@ -43,7 +43,7 @@ BaconFlip isn't just another chat bot; it's a highly customizable framework buil
 1.  **Clone the Repository:**
     ```bash
     git clone https://github.com/ChrispyBacon-dev/baconflip.git
-    cd baconflip-bot
+    cd baconflip
     ```
 2.  **Create Discord Bot Application:**
     *   Go to the [Discord Developer Portal](https://discord.com/developers/applications).
