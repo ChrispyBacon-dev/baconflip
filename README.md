@@ -1,15 +1,30 @@
-# BaconFlip - LiteLLM Discord Bot
+      # BaconFlip - Your Personality-Driven, LiteLLM-Powered Discord Bot
 
-This is a customizable Discord chat bot built with Python using the `Nextcord` library. It connects to various Large Language Models (LLMs) via a `liteLLM` proxy instance, allowing flexible AI interactions.
+**Tired of generic Discord bots? Ready to unleash the full power of cutting-edge AI with your *own* unique twist?**
 
-Core features include:
-*   LLM chat interaction triggered by `@mention`, configured name (`BOT_TRIGGER_NAME`), or direct replies.
-*   Conversation history persistence using Redis.
-*   Configurable system prompt to define the bot's personality.
-*   Channel muting (`!mute`/`!unmute`) controlled by a designated admin user.
-*   Basic fun commands (`!roll`, `!coinflip`, `!choose`, `!avatar`, `!8ball` with LLM).
-*   Welcome messages for new users.
-*   Deployment via Docker Compose.
+BaconFlip isn't just another chat bot; it's a highly customizable framework built with Python (`Nextcord`) designed to connect seamlessly to virtually **any Large Language Model (LLM)** via a `liteLLM` proxy. Whether you want to chat with GPT-4o, Gemini, Claude, Llama, or your own local models, BaconFlip provides the bridge.
+
+**Why Check Out BaconFlip?**
+
+*   🧠 **Universal LLM Access:** Stop being locked into one AI provider. `liteLLM` lets you switch models easily.
+*   🎭 **Deep Personality Customization:** Define your bot's unique character, quirks, and speaking style with a simple `LLM_SYSTEM_PROMPT` in the config. Want a flirty bacon bot? A stoic philosopher? A pirate captain? Go wild!
+*   💬 **Real Conversations:** Thanks to Redis-backed memory, BaconFlip remembers recent interactions per-user, leading to more natural and engaging follow-up conversations.
+*   🚀 **Easy Docker Deployment:** Get the bot (and its Redis dependency) running quickly and reliably using Docker Compose.
+*   🔧 **Flexible Interaction:** Engage the bot via `@mention`, its configurable name (`BOT_TRIGGER_NAME`), or simply by replying to its messages.
+*   🎉 **Fun & Dynamic Features:** Includes LLM-powered commands like `!8ball` and unique, AI-generated welcome messages alongside standard utilities.
+*   ⚙️ **Solid Foundation:** Built with modern Python practices (`asyncio`, Cogs) making it a great base for adding your own features.
+
+**Core Features Include:**
+
+*   LLM chat interaction (via Mention, Name Trigger, or Reply)
+*   Redis-backed conversation history
+*   Configurable system prompt for personality
+*   Admin-controlled channel muting (`!mute`/`!unmute`)
+*   Standard + LLM-generated welcome messages (`!testwelcome` included)
+*   Fun commands: `!roll`, `!coinflip`, `!choose`, `!avatar`, `!8ball` (LLM)
+*   Docker Compose deployment setup
+
+---
 
 ## Setup and Installation
 
