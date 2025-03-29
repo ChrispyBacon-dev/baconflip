@@ -197,7 +197,7 @@ async def on_ready():
     try: # Set presence
         #status_txt = f"'{BOT_TRIGGER_NAME}' or @mention"
         #await bot.change_presence(activity=nextcord.Activity(type=nextcord.ActivityType.listening, name=status_txt)); logger.info(f"Presence: Listening to {status_txt}")
-    pass # Add pass if the try block becomes empty
+        pass # Add pass if the try block becomes empty
     except Exception as e: logger.warning(f"Presence set fail: {e}")
 
 @bot.event
