@@ -273,3 +273,10 @@ class FinanceCog(commands.Cog):
                 f"There was an issue configuring the request for **{pair}**.\nDetails: {ve}"
             ))
              logger.warning(f"Alpha Vantage client ValueError for pair {pair}: {ve}")
+        except Exception as e:
+            # Catch potential network errors, unexpected API responses, etc.
+            await processing_message.edit(content=None, embed=create_error_embed(
+                "Unexpected Error",
+                f"An error occurred while fetching data for **{pair}**.\nPlease try again later or contact support if it persists."
+            ))
+            logger.error(f"Unexpected error in crypto command for pair {pair}: {e}", exc_info=True)
