@@ -3,8 +3,7 @@ import nextcord
 from nextcord.ext import commands
 from alpha_vantage.timeseries import TimeSeries
 from alpha_vantage.cryptocurrencies import CryptoCurrencies
-# Assuming you have this helper in bot.utils.embeds
-# If not, you'll need to create a similar function or replace its calls
+# This import should now correctly find your function based on the file structure
 from bot.utils.embeds import create_error_embed
 import logging
 
@@ -21,8 +20,7 @@ class FinanceCog(commands.Cog):
         api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
         if not api_key:
             logger.error("ALPHA_VANTAGE_API_KEY not found in environment variables.")
-            # Consider how to handle this: raise error, log & disable, etc.
-            # For now, we'll raise an error to prevent the cog from loading improperly.
+            # Raise an error to prevent the cog from loading improperly without an API key.
             raise ValueError("Alpha Vantage API key is missing. FinanceCog cannot be loaded.")
 
         # Initialize Alpha Vantage clients
@@ -48,7 +46,6 @@ class FinanceCog(commands.Cog):
 
         try:
             # Use Alpha Vantage's get_quote_endpoint
-            # The library returns data and meta_data, but for quotes, the data dict often contains everything needed.
             data, meta_data = self.ts.get_quote_endpoint(symbol=symbol)
 
             # Check if the primary data key is present
@@ -287,10 +284,9 @@ class FinanceCog(commands.Cog):
                 if ask_price_f is not None:
                      embed.add_field(name="Ask Price", value=f"{ask_price_f:,.8f} {to_code}", inline=True)
 
-                # Add a spacer field if both bid and ask are present for better layout on desktop
-                if bid_price_f is not None and ask_price_f is not None:
-                    # You might need to adjust the number of inline fields per row in Discord's embed limitations
-                     pass # Embed handles layout automatically, often 3 inline fields max per row
+                # Optional: Add a spacer field if both bid and ask are present and you want better layout control
+                # if bid_price_f is not None and ask_price_f is not None:
+                #    embed.add_field(name="\u200b", value="\u200b", inline=True) # Invisible spacer
 
                 embed.set_footer(text="Data provided by Alpha Vantage. Free plan limits apply.")
                 await processing_message.edit(content=None, embed=embed)
@@ -333,21 +329,14 @@ class FinanceCog(commands.Cog):
 # This function is REQUIRED for the cog to be loaded by nextcord
 def setup(bot):
     """Adds the FinanceCog to the bot."""
-    # Ensure you have the create_error_embed helper function available
-    # If it's in bot.utils.embeds, this import at the top should work.
-    # If not, you might need to adjust the import path or define the function here/elsewhere.
-    if not hasattr(bot, 'utils') or not hasattr(bot.utils, 'embeds') or not hasattr(bot.utils.embeds, 'create_error_embed'):
-         # A basic fallback if the helper is missing, replace with your actual implementation
-         global create_error_embed
-         def create_error_embed(title, description):
-             logger.warning("Using basic fallback create_error_embed. Define bot.utils.embeds.create_error_embed for proper formatting.")
-             return nextcord.Embed(title=f"❌ Error: {title}", description=description, color=nextcord.Color.red())
-
     try:
+        # The import 'from bot.utils.embeds import create_error_embed' at the top
+        # should work correctly if your embeds.py is at bot/utils/embeds.py
         cog = FinanceCog(bot)
         bot.add_cog(cog)
         logger.info("FinanceCog loaded successfully.")
     except Exception as e:
         logger.error(f"Failed to load FinanceCog: {e}", exc_info=True)
-        # Depending on your bot's structure, you might want to prevent the bot from starting
-        # or just log the error and continue without the cog.
+        # Depending on your bot's structure, you might want to raise the error
+        # to prevent the bot from starting without this critical cog.
+        # raise e # Uncomment this line if loading this cog is mandatory for the bot to run
