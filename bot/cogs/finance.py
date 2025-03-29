@@ -272,4 +272,4 @@ class FinanceCog(commands.Cog):
                 "API Request Error",
                 f"There was an issue configuring the request for **{pair}**.\nDetails: {ve}"
             ))
-             logger.warning(f"Alpha Vantage client ValueError for pair {pair}: {ve
+             logger.warning(f"Alpha Vantage client ValueError for pair {pair}: {ve}")
