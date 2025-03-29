@@ -1,4 +1,5 @@
-name: Docker Image Build and Push (Multi-Arch)
+# .github/workflows/docker-build.yml
+name: Docker Image Build and Push (Conditional Arch)
 
 on:
   push:
@@ -16,44 +17,49 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Use latest version
 
-      # --- NEW STEP: Set up QEMU ---
+      # --- Set up QEMU ---
       # Enables the runner to emulate different CPU architectures
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2 # Use v2 or later
+        uses: docker/setup-qemu-action@v3 # Use latest version
 
-      # --- NEW STEP: Set up Docker Buildx ---
+      # --- Set up Docker Buildx ---
       # Creates a builder instance with multi-platform capabilities
       - name: Set up Docker Buildx
-        id: buildx # Give it an id to reference the builder instance if needed, though often not directly
-        uses: docker/setup-buildx-action@v2 # Use v2 or later
+        id: buildx
+        uses: docker/setup-buildx-action@v3 # Use latest version
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3 # Use latest version
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5 # Use latest version
         with:
           images: alplat/baconflip # Your Docker image name
           tags: |
             type=ref,event=branch,pattern=main,value=latest
             type=ref,event=branch,pattern=nightly,value=nightly
             type=sha,format=short
+            # Optional: Add tag for pull requests if needed
+            # type=ref,event=pr
 
       # --- UPDATED STEP: Build and Push Docker Image ---
-      - name: Build and Push Docker Image (Multi-Arch)
-        uses: docker/build-push-action@v5 # Use latest version (v5 recommended)
+      - name: Build and Push Docker Image (Conditional Arch)
+        uses: docker/build-push-action@v5 # Use latest version
         with:
           context: .
-          # --- ADDED: Specify target platforms ---
-          platforms: linux/amd64 # Add other platforms like linux/arm/v7 if needed
-          # Push is necessary to combine the multi-arch manifest in the registry
-          push: ${{ github.event_name == 'push' }}
+          # --- CONDITIONALLY SET PLATFORMS ---
+          # Build both amd64 and arm64 for 'main', only amd64 otherwise (e.g., 'nightly')
+          platforms: ${{ github.ref_name == 'main' ? 'linux/amd64,linux/arm64' : 'linux/amd64' }}
+
+          # Only push when the event is a push to the specific branches, not on pull requests
+          # Ensure you only push tagged commits for main/nightly
+          push: ${{ github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'nightly') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Optional: Enable build cache for potentially faster builds
