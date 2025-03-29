@@ -195,8 +195,9 @@ async def on_ready():
     logger.info(f"Admin ID: {ADMIN_USER_ID}") if ADMIN_USER_ID else logger.warning("Admin ID not set.")
     logger.info(f"Welcome Chan: {WELCOME_CHANNEL_ID}") if WELCOME_CHANNEL_ID else logger.info("Welcome msgs disabled.")
     try: # Set presence
-        status_txt = f"'{BOT_TRIGGER_NAME}' or @mention"
-        await bot.change_presence(activity=nextcord.Activity(type=nextcord.ActivityType.listening, name=status_txt)); logger.info(f"Presence: Listening to {status_txt}")
+        #status_txt = f"'{BOT_TRIGGER_NAME}' or @mention"
+        #await bot.change_presence(activity=nextcord.Activity(type=nextcord.ActivityType.listening, name=status_txt)); logger.info(f"Presence: Listening to {status_txt}")
+        pass # Add pass if the try block becomes empty
     except Exception as e: logger.warning(f"Presence set fail: {e}")
 
 @bot.event
