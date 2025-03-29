@@ -280,3 +280,10 @@ class FinanceCog(commands.Cog):
                 f"An error occurred while fetching data for **{pair}**.\nPlease try again later or contact support if it persists."
             ))
             logger.error(f"Unexpected error in crypto command for pair {pair}: {e}", exc_info=True)
+
+
+# This function is REQUIRED for the cog to be loaded
+def setup(bot):
+    # Adds the cog to the bot.
+    bot.add_cog(FinanceCog(bot)) # Replace FinanceCog with your actual class name if different
+    logger.info("FinanceCog loaded successfully.")
