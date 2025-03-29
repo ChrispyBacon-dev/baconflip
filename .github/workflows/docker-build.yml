@@ -13,55 +13,44 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest # The runner architecture itself doesn't limit build targets with QEMU
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # Use latest version
+        uses: actions/checkout@v4
 
-      # --- Set up QEMU ---
-      # Enables the runner to emulate different CPU architectures
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3 # Use latest version
+        uses: docker/setup-qemu-action@v3
 
-      # --- Set up Docker Buildx ---
-      # Creates a builder instance with multi-platform capabilities
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3 # Use latest version
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3 # Use latest version
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5 # Use latest version
+        uses: docker/metadata-action@v5
         with:
           images: alplat/baconflip # Your Docker image name
           tags: |
             type=ref,event=branch,pattern=main,value=latest
             type=ref,event=branch,pattern=nightly,value=nightly
             type=sha,format=short
-            # Optional: Add tag for pull requests if needed
-            # type=ref,event=pr
 
-      # --- UPDATED STEP: Build and Push Docker Image ---
       - name: Build and Push Docker Image (Conditional Arch)
-        uses: docker/build-push-action@v5 # Use latest version
+        uses: docker/build-push-action@v5
         with:
           context: .
-          # --- CONDITIONALLY SET PLATFORMS ---
-          # Build both amd64 and arm64 for 'main', only amd64 otherwise (e.g., 'nightly')
-          platforms: ${{ github.ref_name == 'main' ? 'linux/amd64,linux/arm64' : 'linux/amd64' }}
-
-          # Only push when the event is a push to the specific branches, not on pull requests
-          # Ensure you only push tagged commits for main/nightly
+          # --- CONDITIONALLY SET PLATFORMS (Alternative Syntax) ---
+          platforms: ${{ github.ref_name == 'main' && 'linux/amd64,linux/arm64' || 'linux/amd64' }} # <--- TRY THIS VERSION
+          # Only push when the event is a push to the specific branches
           push: ${{ github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'nightly') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Optional: Enable build cache for potentially faster builds
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
