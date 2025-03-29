@@ -51,7 +51,7 @@ jobs:
         with:
           context: .
           # --- ADDED: Specify target platforms ---
-          platforms: linux/amd64,linux/arm64 # Add other platforms like linux/arm/v7 if needed
+          platforms: linux/amd64 # Add other platforms like linux/arm/v7 if needed
           # Push is necessary to combine the multi-arch manifest in the registry
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
