@@ -3,8 +3,7 @@ import nextcord
 from nextcord.ext import commands
 from alpha_vantage.timeseries import TimeSeries
 from alpha_vantage.cryptocurrencies import CryptoCurrencies
-# Assuming you have this helper in bot.utils.embeds
-# If not, you'll need to create a similar function or replace its calls
+# This import should correctly find your function based on the file structure
 from bot.utils.embeds import create_error_embed
 import logging
 
@@ -21,8 +20,7 @@ class FinanceCog(commands.Cog):
         api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
         if not api_key:
             logger.error("ALPHA_VANTAGE_API_KEY not found in environment variables.")
-            # Consider how to handle this: raise error, log & disable, etc.
-            # For now, we'll raise an error to prevent the cog from loading improperly.
+            # Raise an error to prevent the cog from loading improperly without an API key.
             raise ValueError("Alpha Vantage API key is missing. FinanceCog cannot be loaded.")
 
         # Initialize Alpha Vantage clients
@@ -36,6 +34,7 @@ class FinanceCog(commands.Cog):
             # Re-raise or handle appropriately if initialization fails
             raise RuntimeError(f"Failed to initialize Alpha Vantage clients: {e}")
 
+    # --- CORRECTED stock FUNCTION ---
     @commands.command(name='stock', help="Gets stock quote. Usage: `stock <SYMBOL>`")
     async def stock(self, ctx: commands.Context, *, symbol: str):
         """Fetches the latest quote for a given stock symbol."""
@@ -48,120 +47,138 @@ class FinanceCog(commands.Cog):
 
         try:
             # Use Alpha Vantage's get_quote_endpoint
-            # The library returns data and meta_data, but for quotes, the data dict often contains everything needed.
+            # Assumes the library returns the quote data directly in the first element (data)
             data, meta_data = self.ts.get_quote_endpoint(symbol=symbol)
 
-            # Check if the primary data key is present
-            if not data or 'Global Quote' not in data:
-                 # Check if it might be an API error message
-                if data and 'Error Message' in data:
-                     error_msg = data['Error Message']
-                     await processing_message.edit(content=None, embed=create_error_embed(
-                        "API Error",
-                        f"Failed to fetch data for **{symbol}**: {error_msg}\n(Check symbol validity or API limits)"
-                    ))
-                     logger.warning(f"API Error for symbol {symbol}: {error_msg}. Received: {data}")
-                elif data and 'Note' in data: # Handle API limit messages
-                     note_msg = data['Note']
-                     await processing_message.edit(content=None, embed=create_error_embed(
-                        "API Limit Note",
-                        f"Note regarding **{symbol}**: {note_msg}\n(This usually indicates reaching the free tier limit)"
-                    ))
-                     logger.warning(f"API Note for symbol {symbol}: {note_msg}. Received: {data}")
-                else:
-                    await processing_message.edit(content=None, embed=create_error_embed(
-                        "Data Not Found",
-                        f"Could not retrieve valid quote data for **{symbol}**. Check if the symbol is correct or try again later."
-                    ))
-                    # Log the structure if it's unexpected but not an error/note
-                    logger.warning(f"No 'Global Quote' key found for symbol: {symbol}. Received: {data}")
-                return # Exit if no valid quote data structure
-
-            quote = data.get('Global Quote') # Use .get() for safety
-
-            # Check if the 'Global Quote' dictionary itself is empty or None
-            if not quote:
+            # 1. Check for explicit API errors/notes first
+            if data and 'Error Message' in data:
+                 error_msg = data['Error Message']
                  await processing_message.edit(content=None, embed=create_error_embed(
-                    "Empty Quote Data",
-                    f"Received an empty quote data structure for **{symbol}**. Check symbol or API status."
+                    "API Error",
+                    f"Failed to fetch data for **{symbol}**: {error_msg}\n(Check symbol validity or API limits)"
                 ))
-                 logger.warning(f"'Global Quote' data is empty or None for symbol: {symbol}. Received data: {data}")
-                 return
-
-            # Extract data safely using .get() with defaults
-            price_str = quote.get('05. price')
-            change_str = quote.get('09. change')
-            change_percent_str = quote.get('10. change percent') # Get raw string first
-            volume_str = quote.get('06. volume')
-            last_trading_day = quote.get('07. latest trading day')
-            symbol_returned = quote.get('01. symbol', symbol) # Use returned symbol if available
-
-            # --- Data Validation and Conversion ---
-            price_f, change_f, change_percent_f, volume_i = None, None, None, None
-            conversion_errors = []
-
-            try:
-                if price_str is not None: price_f = float(price_str)
-                else: conversion_errors.append("price (missing)")
-            except (ValueError, TypeError): conversion_errors.append(f"price ('{price_str}')")
-
-            try:
-                if change_str is not None: change_f = float(change_str)
-                else: conversion_errors.append("change (missing)")
-            except (ValueError, TypeError): conversion_errors.append(f"change ('{change_str}')")
-
-            try:
-                # Clean up percentage string before conversion
-                if change_percent_str is not None:
-                   cleaned_percent_str = change_percent_str.rstrip('%').strip()
-                   change_percent_f = float(cleaned_percent_str) / 100.0 # Store as float (e.g., 0.01 for 1%)
-                else: conversion_errors.append("change percent (missing)")
-            except (ValueError, TypeError): conversion_errors.append(f"change percent ('{change_percent_str}')")
-
-            try:
-                 if volume_str is not None: volume_i = int(volume_str)
-                 else: conversion_errors.append("volume (missing)")
-            except (ValueError, TypeError): conversion_errors.append(f"volume ('{volume_str}')")
-
-            # Only halt if essential data (price) failed conversion
-            if price_f is None or change_f is None or change_percent_f is None:
-                error_details = ", ".join(conversion_errors)
-                await processing_message.edit(content=None, embed=create_error_embed(
-                    "Data Format Error",
-                    f"Received unexpected or missing essential data format for **{symbol_returned}**.\nIssues with: {error_details}.\nRaw quote data: `{quote}`"
+                 logger.warning(f"API Error for symbol {symbol}: {error_msg}. Received: {data}")
+                 return # Exit after error
+            elif data and 'Note' in data: # Handle API limit messages
+                 note_msg = data['Note']
+                 await processing_message.edit(content=None, embed=create_error_embed(
+                    "API Limit Note",
+                    f"Note regarding **{symbol}**: {note_msg}\n(This usually indicates reaching the free tier limit)"
                 ))
-                logger.error(f"Essential data format/conversion error for {symbol_returned}. Errors: {error_details}. Raw quote: {quote}")
-                return
-            # --- End Data Validation ---
+                 logger.warning(f"API Note for symbol {symbol}: {note_msg}. Received: {data}")
+                 return # Exit after note
 
-            embed = nextcord.Embed(
-                title=f"Stock Quote: {symbol_returned}",
-                description=f"Latest Trading Day: {last_trading_day or 'N/A'}",
-                # Set color based on change (handle None case)
-                color=nextcord.Color.green() if (change_f is not None and change_f >= 0) else nextcord.Color.red()
-            )
+            # 2. Check if core data exists (using a key we know should be in a successful quote response)
+            #    If the API call worked, 'data' itself IS the quote data dictionary.
+            elif data and '05. price' in data: # Check for the price key, essential for a quote
+                quote_data = data # Use the received dictionary directly
 
-            embed.add_field(name="Price", value=f"${price_f:,.2f}" if price_f is not None else 'N/A', inline=True)
+                # Extract data safely from the 'quote_data' (which is 'data') using .get()
+                price_str = quote_data.get('05. price')
+                change_str = quote_data.get('09. change')
+                change_percent_str = quote_data.get('10. change percent') # Get raw string first
+                volume_str = quote_data.get('06. volume')
+                last_trading_day = quote_data.get('07. latest trading day')
+                symbol_returned = quote_data.get('01. symbol', symbol) # Use returned symbol if available
 
-            # Format change and percentage with signs, handling None
-            change_display = f"{change_f:+.2f}" if change_f is not None else "N/A" # Always show sign (+/-)
-            change_percent_display = f"({change_percent_f:+.2%})" if change_percent_f is not None else "" # Format as percentage, show sign
-            embed.add_field(name="Change", value=f"{change_display} {change_percent_display}".strip(), inline=True)
+                # --- Data Validation and Conversion ---
+                price_f, change_f, change_percent_f, volume_i = None, None, None, None
+                conversion_errors = []
 
-            embed.add_field(name="Volume", value=f"{volume_i:,}" if volume_i is not None else 'N/A', inline=True)
+                # Check if essential fields were extracted correctly
+                # Volume is often present but less critical than price/change for basic display
+                if not all([symbol_returned, price_str, change_str, change_percent_str]):
+                     await processing_message.edit(content=None, embed=create_error_embed(
+                        "Incomplete Quote Data",
+                        f"Received incomplete quote data structure for **{symbol}**. Key information missing.\nData: `{quote_data}`"
+                    ))
+                     logger.error(f"Incomplete quote data received for {symbol}. Raw data: {quote_data}")
+                     return
 
-            embed.set_footer(text="Data provided by Alpha Vantage. Free plan limits apply.")
-            await processing_message.edit(content=None, embed=embed)
-            logger.info(f"Stock command executed by {ctx.author.name} for symbol {symbol}. Result: {symbol_returned}")
+                try:
+                    if price_str is not None: price_f = float(price_str)
+                    else: conversion_errors.append("price (missing)")
+                except (ValueError, TypeError): conversion_errors.append(f"price ('{price_str}')")
 
-        except ValueError as ve: # Catches errors from alpha_vantage library itself
+                try:
+                    if change_str is not None: change_f = float(change_str)
+                    else: conversion_errors.append("change (missing)")
+                except (ValueError, TypeError): conversion_errors.append(f"change ('{change_str}')")
+
+                try:
+                    # Clean up percentage string before conversion
+                    if change_percent_str is not None:
+                       cleaned_percent_str = change_percent_str.rstrip('%').strip()
+                       change_percent_f = float(cleaned_percent_str) / 100.0 # Store as float (e.g., 0.01 for 1%)
+                    else: conversion_errors.append("change percent (missing)")
+                except (ValueError, TypeError): conversion_errors.append(f"change percent ('{change_percent_str}')")
+
+                # Volume is less critical, allow it to be missing or fail conversion without halting
+                try:
+                     if volume_str is not None: volume_i = int(volume_str)
+                except (ValueError, TypeError):
+                     logger.warning(f"Could not convert volume '{volume_str}' to int for {symbol_returned}.")
+                     volume_i = None # Ensure volume_i is None if conversion fails
+
+                # Halt if essential data (price, change, change%) failed conversion
+                if price_f is None or change_f is None or change_percent_f is None:
+                    error_details = ", ".join(conversion_errors)
+                    await processing_message.edit(content=None, embed=create_error_embed(
+                        "Data Format Error",
+                        f"Received unexpected or missing essential data format for **{symbol_returned}**.\nIssues with: {error_details}.\nRaw quote data: `{quote_data}`"
+                    ))
+                    logger.error(f"Essential data format/conversion error for {symbol_returned}. Errors: {error_details}. Raw quote: {quote_data}")
+                    return
+                # --- End Data Validation ---
+
+                embed = nextcord.Embed(
+                    title=f"Stock Quote: {symbol_returned}",
+                    description=f"Latest Trading Day: {last_trading_day or 'N/A'}",
+                    # Set color based on change (handle None case)
+                    color=nextcord.Color.green() if (change_f is not None and change_f >= 0) else nextcord.Color.red()
+                )
+
+                embed.add_field(name="Price", value=f"${price_f:,.2f}" if price_f is not None else 'N/A', inline=True)
+
+                # Format change and percentage with signs, handling None
+                change_display = f"{change_f:+.2f}" if change_f is not None else "N/A" # Always show sign (+/-)
+                change_percent_display = f"({change_percent_f:+.2%})" if change_percent_f is not None else "" # Format as percentage, show sign
+                embed.add_field(name="Change", value=f"{change_display} {change_percent_display}".strip(), inline=True)
+
+                embed.add_field(name="Volume", value=f"{volume_i:,}" if volume_i is not None else 'N/A', inline=True)
+
+                embed.set_footer(text="Data provided by Alpha Vantage. Free plan limits apply.")
+                await processing_message.edit(content=None, embed=embed)
+                logger.info(f"Stock command executed by {ctx.author.name} for symbol {symbol}. Result: {symbol_returned}")
+
+            # 3. If data exists but isn't an error/note and doesn't have the core price key
+            elif data: # Catch cases where data is received but not in expected format
+                 await processing_message.edit(content=None, embed=create_error_embed(
+                    "Unexpected Quote Format",
+                    f"Received an unexpected data structure for **{symbol}**. Cannot find price data.\nCheck logs for details."
+                ))
+                 # Log the actual received data for debugging why it wasn't recognized
+                 logger.warning(f"Unrecognized quote data structure for {symbol}. Missing '05. price' key. Received: {data}")
+                 return # Exit
+
+            # 4. If data is None or empty
+            else:
+                 await processing_message.edit(content=None, embed=create_error_embed(
+                    "Data Not Found",
+                    f"Could not retrieve any quote data for **{symbol}**. Check if the symbol is correct or the API is down."
+                ))
+                 logger.warning(f"No data received from API for {symbol}. Received: {data}")
+                 return # Exit
+
+
+        except ValueError as ve: # Catches specific errors from alpha_vantage library interaction
              await processing_message.edit(content=None, embed=create_error_embed(
-                "API Request Error",
-                f"There was an issue configuring the request for **{symbol}**.\nDetails: {ve}"
+                "API Request/ValueError", # Clarified error type
+                f"There was an issue configuring the request or interpreting data for **{symbol}**.\nDetails: {ve}"
             ))
              logger.warning(f"Alpha Vantage client ValueError for symbol {symbol}: {ve}")
         except Exception as e:
-            # Catch potential network errors, unexpected API responses, etc.
+            # Catch potential network errors, timeouts, other unexpected issues
             await processing_message.edit(content=None, embed=create_error_embed(
                 "Unexpected Error",
                 f"An error occurred while fetching data for **{symbol}**.\nPlease try again later or contact support if it persists."
@@ -248,12 +265,14 @@ class FinanceCog(commands.Cog):
                     if bid_price_str is not None: bid_price_f = float(bid_price_str)
                 except (ValueError, TypeError):
                     logger.warning(f"Could not convert bid price '{bid_price_str}' to float for {pair}.")
+                    bid_price_f = None # Ensure it's None if conversion fails
                     pass # Don't add to conversion_errors as it's optional
 
                 try:
                     if ask_price_str is not None: ask_price_f = float(ask_price_str)
                 except (ValueError, TypeError):
                     logger.warning(f"Could not convert ask price '{ask_price_str}' to float for {pair}.")
+                    ask_price_f = None # Ensure it's None if conversion fails
                     pass # Don't add to conversion_errors as it's optional
 
                 # Only error out if the MAIN exchange rate failed conversion
@@ -286,11 +305,6 @@ class FinanceCog(commands.Cog):
                     embed.add_field(name="Bid Price", value=f"{bid_price_f:,.8f} {to_code}", inline=True)
                 if ask_price_f is not None:
                      embed.add_field(name="Ask Price", value=f"{ask_price_f:,.8f} {to_code}", inline=True)
-
-                # Add a spacer field if both bid and ask are present for better layout on desktop
-                if bid_price_f is not None and ask_price_f is not None:
-                    # You might need to adjust the number of inline fields per row in Discord's embed limitations
-                     pass # Embed handles layout automatically, often 3 inline fields max per row
 
                 embed.set_footer(text="Data provided by Alpha Vantage. Free plan limits apply.")
                 await processing_message.edit(content=None, embed=embed)
@@ -333,21 +347,14 @@ class FinanceCog(commands.Cog):
 # This function is REQUIRED for the cog to be loaded by nextcord
 def setup(bot):
     """Adds the FinanceCog to the bot."""
-    # Ensure you have the create_error_embed helper function available
-    # If it's in bot.utils.embeds, this import at the top should work.
-    # If not, you might need to adjust the import path or define the function here/elsewhere.
-    if not hasattr(bot, 'utils') or not hasattr(bot.utils, 'embeds') or not hasattr(bot.utils.embeds, 'create_error_embed'):
-         # A basic fallback if the helper is missing, replace with your actual implementation
-         global create_error_embed
-         def create_error_embed(title, description):
-             logger.warning("Using basic fallback create_error_embed. Define bot.utils.embeds.create_error_embed for proper formatting.")
-             return nextcord.Embed(title=f"❌ Error: {title}", description=description, color=nextcord.Color.red())
-
     try:
+        # The import 'from bot.utils.embeds import create_error_embed' at the top
+        # should work correctly if your embeds.py is at bot/utils/embeds.py
         cog = FinanceCog(bot)
         bot.add_cog(cog)
         logger.info("FinanceCog loaded successfully.")
     except Exception as e:
         logger.error(f"Failed to load FinanceCog: {e}", exc_info=True)
-        # Depending on your bot's structure, you might want to prevent the bot from starting
-        # or just log the error and continue without the cog.
+        # Depending on your bot's structure, you might want to raise the error
+        # to prevent the bot from starting without this critical cog.
+        # raise e # Uncomment this line if loading this cog is mandatory for the bot to run
