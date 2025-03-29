@@ -1,0 +1,38 @@
+# Environment variables
+.env
+
+# Python cache/compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Docker data volumes (if mapped locally for testing)
+redis_data/
+
+# IDE specific folders
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Virtual environment folders
+env/
+venv/
+ENV/
+.env/
+.venv/
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+Thumbs.db
