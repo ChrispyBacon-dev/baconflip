@@ -1,0 +1,30 @@
+Scraper for game deals , epic store, giveaways. 
+1. Using Aggregator APIs (Often the Best Bet):
+
+Services like IsThereAnyDeal (ITAD): While primarily for deals, ITAD often tracks major giveaways. They have an API, but you'll need to check its current capabilities and terms regarding fetching free games specifically. Sometimes free games are listed with a 100% discount.
+
+Other Game Deal APIs: Search for APIs specifically designed to track game deals and freebies. Services come and go, so research current options. GG.deals might also have API potential, check their developer resources.
+
+Community-Driven APIs/Projects: Look on GitHub for projects dedicated to tracking free games. Sometimes people build public APIs or scrapers that you can use (always check their terms and reliability). Example search: "free games tracker API github".
+
+Pros: Often aggregates multiple sources, potentially more reliable than scraping individual sites.
+Cons: Might require API keys, could have rate limits, might not be instantly up-to-date, API features might change.
+
+2. Monitoring Subreddits via Reddit API (Very Popular & Effective):
+
+Subreddits: Communities like r/GameDeals and r/FreeGameFindings are extremely fast at posting free game offers from Epic, GOG, Steam, Humble Bundle, etc.
+
+Python Library: Use the praw (Python Reddit API Wrapper) library.
+
+How it works:
+
+Register a Reddit API script application to get credentials.
+
+Use praw in your bot to monitor new posts in specific subreddits (e.g., reddit.subreddit("FreeGameFindings+GameDeals").stream.submissions()).
+
+Filter post titles/flairs for keywords like "[Epic Games]", "[GOG]", "Free", "100%".
+
+When a relevant post is found, extract the game title and link, then send a notification to your Discord channel.
+
+Pros: Leverages a fast and dedicated community, covers many platforms, relatively reliable API (praw).
+Cons: Relies on Reddit users posting accurately and quickly, requires Reddit API setup, needs filtering logic to avoid duplicates or irrelevant posts.
