@@ -15,7 +15,7 @@ BaconFlip isn't just another chat bot; it's a highly customizable framework buil
 *   **Real Conversations:** Thanks to Redis-backed memory, BaconFlip remembers recent interactions per-user, leading to more natural and engaging follow-up conversations.
 *   **Easy Docker Deployment:** Get the bot (and its Redis dependency) running quickly and reliably using Docker Compose.
 *   **Flexible Interaction:** Engage the bot via `@mention`, its configurable name (`BOT_TRIGGER_NAME`), or simply by replying to its messages.
-*   **Fun & Dynamic Features:** Includes LLM-powered commands like `!8ball` and unique, AI-generated welcome messages alongside standard utilities.
+*   **Fun & Dynamic Features:** Includes LLM-powered commands like `!8ball`, unique AI-generated welcome messages, and helpful utilities like stock/crypto lookups **with trend charts**.
 *   **Solid Foundation:** Built with modern Python practices (`asyncio`, Cogs) making it a great base for adding your own features.
 
 ## Core Features Include:
@@ -25,8 +25,17 @@ BaconFlip isn't just another chat bot; it's a highly customizable framework buil
 *   Configurable system prompt for personality
 *   Admin-controlled channel muting (`!mute`/`!unmute`)
 *   Standard + LLM-generated welcome messages (`!testwelcome` included)
-*   Fun commands: `!roll`, `!coinflip`, `!choose`, `!avatar`, `!8ball` (LLM)
+*   **Finance Commands:** `!stock`, `!crypto` (with small trend charts!)
+*   **Fun Commands:** `!roll`, `!coinflip`, `!choose`, `!8ball` (LLM)
+*   **Info Commands:** `!ping`, `!serverinfo`, `!userinfo`, `!avatar`
 *   Docker Compose deployment setup
+
+### Example: Baconflip chat Greeting
+![BaconFlip LLM chat example](images/chat_example.png)
+
+### Example: Stock Quote with Trend
+
+![BaconFlip stock command example showing price and 5-day trend chart](images/stock_example.png)
 
 ---
 

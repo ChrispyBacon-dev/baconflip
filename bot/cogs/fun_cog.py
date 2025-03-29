@@ -1,3 +1,5 @@
+# --- bot/cogs/fun_cog.py ---
+
 import nextcord
 from nextcord.ext import commands
 import random
@@ -7,7 +9,8 @@ import asyncio # Needed for typing indicator
 
 logger = logging.getLogger(__name__)
 
-class FunCog(commands.Cog):
+class FunCog(commands.Cog, name="Fun"): # Added a Cog name for clarity
+    """Commands for fun and games."""
     def __init__(self, bot):
         self.bot = bot
 
@@ -40,12 +43,16 @@ class FunCog(commands.Cog):
         else:
             rolls_str = ', '.join(map(str, rolls))
             await ctx.send(f"{ctx.author.mention} rolled **{total}** ({num_dice}d{num_sides}: [{rolls_str}])")
+        logger.info(f"Roll command executed by {ctx.author.name} for dice '{dice_str}'. Result: {total}")
+
 
     @commands.command(name='coinflip', help='Flips a coin.')
     async def coinflip(self, ctx):
         """Flips a coin."""
         result = random.choice(["Heads", "Tails"])
         await ctx.send(f"{ctx.author.mention}, it's **{result}!**")
+        logger.info(f"Coinflip command executed by {ctx.author.name}. Result: {result}")
+
 
     @commands.command(name='8ball', aliases=['eightball'], help='Ask the Magic 8-Ball a question using AI.')
     async def eight_ball(self, ctx, *, question: str):
@@ -80,6 +87,8 @@ class FunCog(commands.Cog):
                     )
                     if llm_response is not None:
                         answer = llm_response
+                    else:
+                         logger.warning(f"8ball LLM call for '{question}' returned None.")
                 else:
                     logger.error("get_llm_response not found on bot object. Is it defined and attached in on_ready?")
                     answer = "My sources say no (Internal Error)."
@@ -97,33 +106,29 @@ class FunCog(commands.Cog):
         embed.add_field(name="Answer", value=f"**{answer}**", inline=False)
         embed.set_footer(text=f"Asked by {ctx.author.display_name}")
         await ctx.send(embed=embed)
+        logger.info(f"8ball command executed by {ctx.author.name}. Question: '{question}'. Answer: '{answer}'")
+
 
     @commands.command(name='choose', help='Randomly chooses from a list of options.')
     async def choose(self, ctx, *, choices: str):
         """Randomly chooses between multiple options provided."""
-        options = [choice.strip() for choice in choices.split('|') if choice.strip()] # Split by '|'
+        # Split by '|', trim whitespace, and filter out empty strings
+        options = [choice.strip() for choice in choices.split('|') if choice.strip()]
         if len(options) < 2:
             await ctx.send("Please provide at least two options separated by `|` (e.g., `!choose pizza | burger | salad`).")
             return
 
         chosen_option = random.choice(options)
         await ctx.send(f"{ctx.author.mention}, out of `{', '.join(options)}`...\nI choose **{chosen_option}**!")
+        logger.info(f"Choose command executed by {ctx.author.name}. Choices: '{choices}'. Chosen: '{chosen_option}'")
 
-    @commands.command(name='avatar', help='Displays the avatar of a user.')
-    async def avatar(self, ctx, member: nextcord.Member = None):
-        """Shows the avatar URL of the specified member or the command author."""
-        if member is None:
-            member = ctx.author # Default to the person who used the command
 
-        avatar_url = member.display_avatar.url
+    # ----------------------------------------- #
+    # ----- AVATAR COMMAND REMOVED FROM HERE ---- #
+    # ----------------------------------------- #
 
-        embed = nextcord.Embed(title=f"{member.display_name}'s Avatar", color=member.color)
-        embed.set_image(url=avatar_url)
-        embed.set_footer(text=f"Requested by {ctx.author.display_name}")
-        await ctx.send(embed=embed)
 
 # This function is required for the cog to be loaded
 def setup(bot):
     bot.add_cog(FunCog(bot))
     logger.info("FunCog loaded successfully.")
-
