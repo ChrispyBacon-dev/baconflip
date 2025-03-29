@@ -150,7 +150,9 @@ class FinanceCog(commands.Cog):
                 f"An error occurred while fetching data for **{symbol}**.\nPlease try again later or contact support if it persists."
             ))
             # Log the full traceback for debugging
-            logger.error(f"Unexpected error fetching stock data for {symbol}: {e}", exc_info=True)
+            # --- FIX: Complete the logger.error call ---
+            logger.error(f"Unexpected error in stock command for symbol {symbol}: {e}", exc_info=True)
+            # --- END FIX ---
 
 
     @commands.command(name='crypto', help="Gets crypto exchange rate. Usage: `crypto <CRYPTO> [FIAT]`")
@@ -214,7 +216,7 @@ class FinanceCog(commands.Cog):
             exchange_rate_f, bid_price_f, ask_price_f = None, None, None
             conversion_errors = []
 
-            if not all([from_code, from_name, to_code, to_name, exchange_rate_str):
+            if not all([from_code, from_name, to_code, to_name, exchange_rate_str]):
                 await processing_message.edit(content=None, embed=create_error_embed(
                     "Incomplete Data",
                     f"Received incomplete data structure for **{pair}**. Key information missing.\nData: `{rate_data}`"
@@ -270,25 +272,4 @@ class FinanceCog(commands.Cog):
                 "API Request Error",
                 f"There was an issue configuring the request for **{pair}**.\nDetails: {ve}"
             ))
-             logger.warning(f"Alpha Vantage client ValueError for pair {pair}: {ve}")
-        except Exception as e:
-            await processing_message.edit(content=None, embed=create_error_embed(
-                "Unexpected Error",
-                f"An error occurred while fetching data for **{pair}**.\nPlease try again later."
-            ))
-            logger.error(f"Unexpected error fetching crypto data for {pair}: {e}", exc_info=True)
-
-
-# Setup function for loading the cog
-def setup(bot: commands.Bot):
-    """Loads the FinanceCog."""
-    try:
-        bot.add_cog(FinanceCog(bot))
-        logger.info("FinanceCog loaded successfully.")
-    except (ValueError, RuntimeError) as e:
-         # Catch initialization errors (missing API key, client init failure)
-         logger.error(f"Failed to load FinanceCog: {e}")
-    except Exception as e:
-        # Catch any other unexpected errors during setup
-        logger.error(f"An unexpected error occurred while loading FinanceCog: {e}", exc_info=True)
-
+             logger.warning(f"Alpha Vantage client ValueError for pair {pair}: {ve

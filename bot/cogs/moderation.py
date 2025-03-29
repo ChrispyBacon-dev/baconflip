@@ -22,4 +22,22 @@ class ModerationCog(commands.Cog):
             raise commands.NoPrivateMessage("Moderation commands cannot be used in DMs.")
         return True # Proceed if in a guild
 
-    def
+    # Example basic command structure (can be expanded)
+    @commands.command(name="ping_mod")
+    @commands.has_permissions(kick_members=True) # Example permission check
+    async def ping_mod(self, ctx: commands.Context):
+        """A simple command to check if the cog is loaded (requires kick perms)."""
+        await ctx.send(f"Moderation Cog Pong! (Prefix: {self.command_prefix})")
+
+    @commands.command(name="admin_only_test")
+    async def admin_only_test(self, ctx: commands.Context):
+        """A command only the bot admin can run."""
+        if ctx.author.id != ADMIN_USER_ID:
+            await ctx.send("You do not have permission to use this command.")
+            return
+        await ctx.send(f"Hello Admin User {ctx.author.mention}!")
+
+# Setup function to load the cog (standard practice)
+def setup(bot: commands.Bot):
+    bot.add_cog(ModerationCog(bot))
+    logger.info("ModerationCog loaded successfully.") # Log success on load
