@@ -118,23 +118,35 @@ For Docker deployment go here https://hub.docker.com/r/alplat/baconflip
 ## Project Structure
 
 ```text
-baconflip-bot/
-├── bot/                  # Main bot code
-│   ├── __init__.py
-│   ├── bot.py            # Core bot logic, event handlers
-│   ├── cogs/             # Command modules (Cogs)
-│   │   ├── __init__.py
-│   │   ├── fun_cog.py
-│   │   └── admin_cog.py
-│   └── utils/            # Utility functions
-│       ├── __init__.py
-│       └── history.py    # Redis interactions (history, mute)
-├── .env.example          # Example environment variables file <<< CONFIGURE THIS
-├── .gitignore
-├── Dockerfile            # Docker image definition for the bot
-├── docker-compose.yml    # Docker Compose setup for bot and Redis
-├── README.md             # This file
-└── requirements.txt      # Python dependencies
+baconflip/                     # Root directory of the project
+├── .dockerignore              # Specifies files/directories to exclude from Docker image context
+├── .env.example               # Example environment variables file <<< CONFIGURE THIS
+├── .github/                   # GitHub specific files
+│   └── workflows/             # GitHub Actions workflow definitions
+│       └── docker-build.yml   # Workflow for building the Docker image
+├── .gitignore                 # Specifies intentionally untracked files for Git
+├── Dockerfile                 # Defines the Docker image for the bot application
+├── LICENSE                    # Project's software license file
+├── README.md                  # Project description, setup instructions, etc.
+├── bot/                       # Main Python package for the Discord bot
+│   ├── __init__.py            # Makes 'bot' a Python package
+│   ├── bot.py                 # Core Bot class, setup, event handlers, cog loading
+│   ├── cogs/                  # Command modules (Cogs)
+│   │   ├── __init__.py        # Makes 'cogs' a Python sub-package
+│   │   ├── admin_cog.py       # Administrative commands cog
+│   │   ├── finance.py         # Cog for finance-related commands
+│   │   ├── fun_cog.py         # Cog for fun/entertainment commands
+│   │   ├── info.py            # Cog for informational commands
+│   │   └── moderation.py      # Cog for server moderation commands
+│   └── utils/                 # Utility functions and classes
+│       ├── __init__.py        # Makes 'utils' a Python sub-package
+│       ├── embeds.py          # Helper functions/classes for creating Discord embeds
+│       └── history.py         # Utility for handling command history/state
+├── docker-compose.yml         # Docker Compose configuration
+├── images/                    # Directory for static image assets
+│   ├── chat_example.png
+│   └── stock_example.png
+└── requirements.txt           # Python package dependencies
 ```
 ## Contributing
 
