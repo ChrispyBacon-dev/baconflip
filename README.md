@@ -90,14 +90,14 @@ For Docker deployment go here https://hub.docker.com/r/alplat/baconflip
     *   `-d`: Runs in detached mode (background).
 5.  **Check Logs:**
     ```bash
-    docker-compose logs -f baconflip-bot  # View bot logs
-    docker-compose logs -f redis-baconflip # View Redis logs (if needed)
+    docker compose logs -f baconflip-bot  # View bot logs
+    docker compose logs -f redis-baconflip # View Redis logs (if needed)
     ```
     Press `Ctrl+C` to stop viewing logs.
 6.  **Stopping:**
     ```bash
-    docker-compose down         # Stops and removes containers
-    docker-compose down -v      # Stops containers AND removes the Redis data volume
+    docker compose down         # Stops and removes containers
+    docker compose down -v      # Stops containers AND removes the Redis data volume
     ```
 
 ## Usage
