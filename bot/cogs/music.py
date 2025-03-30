@@ -45,7 +45,7 @@ YDL_OPTS = {
 # Or configure just this cog's logger
 logger = logging.getLogger(__name__)
 # To see DEBUG messages from this cog specifically:
-# logger.setLevel(logging.DEBUG) # Uncomment if needed for deep debugging
+logger.setLevel(logging.DEBUG) # Uncomment if needed for deep debugging
 
 class Song:
     """Represents a song to be played."""
