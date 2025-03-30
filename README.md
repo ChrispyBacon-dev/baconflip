@@ -84,7 +84,7 @@ For Docker deployment go here https://hub.docker.com/r/alplat/baconflip
         *   (Optional) Configure `COMMAND_PREFIX`, `WELCOME_CHANNEL_ID`, `REDIS_PASSWORD`, `HISTORY_LENGTH`, `LITELLM_API_KEY`.
 4.  **Build and Run with Docker Compose:**
     ```bash
-    docker-compose up --build -d
+    docker compose up --build -d
     ```
     *   `--build`: Rebuilds the image if code changes.
     *   `-d`: Runs in detached mode (background).
