@@ -40,6 +40,6 @@ COPY . .
 # Command to run the bot using module execution (assumes bot/bot.py exists)
 # Note: If bot.py is directly in /app, use ["python", "bot.py"]
 # If bot.py is in /app/bot/, use ["python", "bot/bot.py"] or ["python", "-m", "bot.bot"]
-CMD ["python", "bot/bot.py"] # Adjusted based on your file structure discussion previously
+# CMD ["python", "bot/bot.py"] # Adjusted based on your file structure discussion previously
 # Or use the module execution if you prefer and have the __main__.py setup:
-# CMD ["python", "-m", "bot.bot"]
+CMD ["python", "-m", "bot.bot"]
