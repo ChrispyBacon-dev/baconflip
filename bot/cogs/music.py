@@ -613,17 +613,19 @@ class MusicCog(commands.Cog, name="Music"):
 
 def setup(bot: commands.Bot):
     """Adds the MusicCog to the bot."""
-    # Ensure opus is loaded before adding the cog that uses voice
+    # Check if opus is loaded. Nextcord tries to load it automatically.
     if not nextcord.opus.is_loaded():
-        try:
-            # Try loading opus. You might need to specify the path if it's not found automatically.
-            # e.g., nextcord.opus.load_opus('/usr/lib/libopus.so.0')
-            nextcord.opus.load_opus()
-            logger.info("Opus library loaded successfully.")
-        except nextcord.opus.OpusNotLoaded:
-            logger.critical("Opus library could not be loaded. Music playback will fail. "
-                          "Ensure libopus is installed and potentially specify its path.")
-            # Optionally prevent loading the cog if opus fails
-            # return
+        logger.critical(
+            "Opus library is not loaded. Music playback will likely fail. "
+            "Ensure libopus (e.g., libopus-dev on Debian/Ubuntu, opus on others) "
+            "is installed on your system and accessible in the library path."
+            "\nIf installed but not found, you may need to manually load it using:"
+            "\nnextcord.opus.load_opus('path/to/your/libopus.so') before adding the cog."
+        )
+        # You could optionally prevent the cog from loading if opus isn't found:
+        # raise commands.ExtensionError("Opus library not loaded.")
+    else:
+        logger.info("Opus library loaded successfully (or was already loaded).")
+
     bot.add_cog(MusicCog(bot))
-    logger.info("MusicCog loaded successfully.")
+    logger.info("MusicCog added to bot.") # Changed log message slightly

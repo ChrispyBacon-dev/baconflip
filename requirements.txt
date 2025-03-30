@@ -9,4 +9,3 @@ matplotlib
 pandas
 yt-dlp
 PyNaCl
-libopus-dev
