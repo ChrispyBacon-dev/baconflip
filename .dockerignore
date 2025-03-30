@@ -1,0 +1,11 @@
+# .git # Keep .git *unless* you bake version at build time (we need it runtime)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.env
+.vscode/
+*.log
