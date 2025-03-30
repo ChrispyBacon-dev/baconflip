@@ -21,6 +21,7 @@ redis_data/
 *.njsproj
 *.sln
 *.sw?
+*.ignore
 
 # Virtual environment folders
 env/
