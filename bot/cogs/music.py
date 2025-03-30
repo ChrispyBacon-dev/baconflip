@@ -255,9 +255,18 @@ class MusicCog(commands.Cog, name="Music"):
                              audio_url = f['url']
                              break
                  if not audio_url: # Last resort: highest quality audio format found
-                     best_audio = self.ydl.process_ie_result(entry, download=False).get('requested_formats')
-                     if best_audio: audio_url = best_audio[0].get('url')
-                     elif entry.get('url'): audio_url = entry['url'] # Final fallback to entry URL if exists
+                     best_audio = None
+                     # Try processing formats to find the best audio URL explicitly marked by ytdl
+                     try:
+                         processed_info = self.ydl.process_ie_result(entry, download=False)
+                         best_audio = processed_info.get('requested_formats')
+                     except Exception as process_err:
+                         logger.warning(f"Could not re-process formats: {process_err}")
+
+                     if best_audio:
+                         audio_url = best_audio[0].get('url')
+                     elif entry.get('url'): # Final fallback to entry URL if exists and no formats worked
+                          audio_url = entry['url']
 
             if not audio_url:
                 logger.error(f"Could not extract playable audio URL for: {entry.get('title', query)}")
@@ -288,30 +297,38 @@ class MusicCog(commands.Cog, name="Music"):
         """Handles bot disconnection or empty channels."""
         if member.id != self.bot.user.id:
             # Handle users leaving/joining if needed (e.g., pause if channel empty)
-             if before.channel and len(before.channel.members) == 1 and self.bot.user in before.channel.members:
-                 state = self.get_guild_state(member.guild.id)
-                 if state.voice_client and state.voice_client.channel == before.channel:
-                     logger.info(f"[{member.guild.id}] Last user left channel {before.channel.name}. Pausing playback.")
-                     if state.voice_client.is_playing(): state.voice_client.pause()
-                     # TODO: Add a timer here to leave after X minutes of being alone?
-             elif after.channel and self.bot.user in after.channel.members:
-                 # User joined the bot's channel, resume if paused and was paused due to empty channel
-                  state = self.get_guild_state(member.guild.id)
-                  if state.voice_client and state.voice_client.channel == after.channel:
-                       if state.voice_client.is_paused():
-                            logger.info(f"[{member.guild.id}] User joined channel {after.channel.name}. Resuming playback.")
-                            state.voice_client.resume()
-            return # Only interested in the bot's state changes below
+            # Check if someone left the bot's channel and the bot is now alone
+            if before.channel and self.bot.user in before.channel.members and len(before.channel.members) == 1:
+                state = self.get_guild_state(member.guild.id)
+                # Ensure the state and voice client are valid and the channel matches
+                if state and state.voice_client and state.voice_client.channel == before.channel:
+                    logger.info(f"[{member.guild.id}] Last user left channel {before.channel.name}. Pausing playback.")
+                    if state.voice_client.is_playing():
+                        state.voice_client.pause()
+                    # Optional TODO: Add a timer here to leave after X minutes of being alone?
 
-        state = self.get_guild_state(member.guild.id)
+            # Check if someone joined the bot's channel while it was paused (potentially due to being alone)
+            elif after.channel and self.bot.user in after.channel.members and len(after.channel.members) > 1:
+                 state = self.get_guild_state(member.guild.id)
+                 # Ensure the state and voice client are valid and the channel matches
+                 if state and state.voice_client and state.voice_client.channel == after.channel:
+                     if state.voice_client.is_paused():
+                          logger.info(f"[{member.guild.id}] User joined channel {after.channel.name}. Resuming playback.")
+                          state.voice_client.resume()
+
+            # If the update wasn't for the bot, we don't need to process bot disconnect logic below
+            return # <-- This is the line that caused the error, now correctly indented
+
+        # --- Code below only runs if the voice state update IS for the bot ---
+        state = self.get_guild_state(member.guild.id) # Get state safely
 
         # Bot was disconnected (kicked, moved, channel deleted, etc.)
         if before.channel is not None and after.channel is None:
             logger.warning(f"[{member.guild.id}] Bot was disconnected from voice channel {before.channel.name}. Cleaning up.")
-            if state:
-                 await state.cleanup() # Stop loop, clear queue, cleanup state
+            await state.cleanup() # Stop loop, clear queue, cleanup state
             if member.guild.id in self.guild_states:
                  del self.guild_states[member.guild.id] # Remove state entry
+
 
     # --- Music Commands ---
 
@@ -384,6 +401,8 @@ class MusicCog(commands.Cog, name="Music"):
             if ctx.author.voice and ctx.author.voice.channel:
                  logger.info(f"[{ctx.guild.id}] Play requested, connecting to {ctx.author.voice.channel.name} first.")
                  await ctx.invoke(self.join_command) # Attempt to join user's channel
+                 # Re-fetch state in case join_command created it
+                 state = self.get_guild_state(ctx.guild.id)
                  if not state.voice_client or not state.voice_client.is_connected(): # Check if join succeeded
                       return await ctx.send("Failed to join your voice channel. Cannot play.")
             else:
@@ -432,7 +451,8 @@ class MusicCog(commands.Cog, name="Music"):
 
             # Ensure the playback loop is running and signal it
             state.start_playback_loop() # Starts if not running
-            state.play_next_song.set() # Signal it to check queue immediately if waiting
+            # No need to explicitly set event here, start_playback_loop handles it or the loop will pick it up
+            # state.play_next_song.set() # Avoid setting event directly unless needed for specific cases
 
 
     @commands.command(name='skip', aliases=['s'], help="Skips the currently playing song.")
@@ -442,7 +462,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         if not state.voice_client or not state.voice_client.is_connected():
             return await ctx.send("I'm not connected to a voice channel.")
-        if not state.voice_client.is_playing():
+        if not state.voice_client.is_playing() and not state.current_song: # Check if actually playing or about to play
             return await ctx.send("I'm not playing anything right now.")
 
         logger.info(f"[{ctx.guild.id}] Skip requested by {ctx.author.name}.")
@@ -525,7 +545,7 @@ class MusicCog(commands.Cog, name="Music"):
             embed.set_footer(text=f"Total songs: {len(state.queue) + (1 if state.current_song else 0)}")
             await ctx.send(embed=embed)
 
-    @commands.command(name='volume', aliases=['vol'], help="Changes the player volume (1-100).")
+    @commands.command(name='volume', aliases=['vol'], help="Changes the player volume (0-100).")
     async def volume_command(self, ctx: commands.Context, *, volume: int):
         """Sets the volume of the music player."""
         state = self.get_guild_state(ctx.guild.id)
@@ -578,7 +598,11 @@ class MusicCog(commands.Cog, name="Music"):
             # Errors raised within the command's execution
             original = error.original
             logger.error(f"Error invoking command {ctx.command.name}: {original.__class__.__name__}: {original}", exc_info=original)
-            await ctx.send("An internal error occurred while processing your request.")
+            # Provide more specific feedback for common voice errors if possible
+            if isinstance(original, nextcord.errors.ClientException):
+                await ctx.send(f"Voice Error: {original}")
+            else:
+                await ctx.send("An internal error occurred while processing your request.")
         else:
             # Let the global handler deal with other common errors
             # Log it here for music-specific context if needed
@@ -589,5 +613,17 @@ class MusicCog(commands.Cog, name="Music"):
 
 def setup(bot: commands.Bot):
     """Adds the MusicCog to the bot."""
+    # Ensure opus is loaded before adding the cog that uses voice
+    if not nextcord.opus.is_loaded():
+        try:
+            # Try loading opus. You might need to specify the path if it's not found automatically.
+            # e.g., nextcord.opus.load_opus('/usr/lib/libopus.so.0')
+            nextcord.opus.load_opus()
+            logger.info("Opus library loaded successfully.")
+        except nextcord.opus.OpusNotLoaded:
+            logger.critical("Opus library could not be loaded. Music playback will fail. "
+                          "Ensure libopus is installed and potentially specify its path.")
+            # Optionally prevent loading the cog if opus fails
+            # return
     bot.add_cog(MusicCog(bot))
     logger.info("MusicCog loaded successfully.")
