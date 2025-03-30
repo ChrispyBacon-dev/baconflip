@@ -8,12 +8,18 @@ ENV PYTHONUNBUFFERED 1
 # Set the working directory in the container
 WORKDIR /app
 
-# --- Install git ---
-# GitPython requires the git executable to be installed in the container's OS.
+# --- Install System Dependencies (git, opus, ffmpeg) ---
+# GitPython requires the git executable.
+# Music cog requires libopus-dev (for Opus encoding/decoding) and ffmpeg (for audio processing).
 # Combine update, install, and cleanup into one RUN layer to reduce image size.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
+    apt-get install -y --no-install-recommends \
+        git \
+        libopus-dev \
+        ffmpeg \
+    && \
     # Clean up apt cache to keep the image smaller
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # --- Install Python Dependencies ---
@@ -32,4 +38,8 @@ COPY . .
 
 # --- Run Command ---
 # Command to run the bot using module execution (assumes bot/bot.py exists)
-CMD ["python", "-m", "bot.bot"]
+# Note: If bot.py is directly in /app, use ["python", "bot.py"]
+# If bot.py is in /app/bot/, use ["python", "bot/bot.py"] or ["python", "-m", "bot.bot"]
+CMD ["python", "bot/bot.py"] # Adjusted based on your file structure discussion previously
+# Or use the module execution if you prefer and have the __main__.py setup:
+# CMD ["python", "-m", "bot.bot"]
