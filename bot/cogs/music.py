@@ -534,86 +534,97 @@ class MusicCog(commands.Cog, name="Music"):
 
         await ctx.message.add_reaction('👋')
 
-
     @commands.command(name='play', aliases=['p'], help="Plays a song from a URL or search query, or adds it to the queue.")
     @commands.guild_only()
     async def play_command(self, ctx: commands.Context, *, query: str):
         """Plays audio from a URL (YouTube, SoundCloud, etc.) or searches YouTube."""
         state = self.get_guild_state(ctx.guild.id)
-        logger.info(f"[{ctx.guild.id}] User {ctx.author.name} initiated play with query: {query}") # Log who and what
+        log_prefix = f"[{ctx.guild.id}] PlayCmd:" # Easier prefix for this command's logs
+        logger.info(f"{log_prefix} User {ctx.author.name} initiated play with query: {query}")
 
         # 1. Ensure bot is connected (or connect it)
         if not state.voice_client or not state.voice_client.is_connected():
             if ctx.author.voice and ctx.author.voice.channel:
-                 logger.info(f"[{ctx.guild.id}] Play requested, connecting to {ctx.author.voice.channel.name} first.")
+                 logger.info(f"{log_prefix} Bot not connected. Invoking join command for channel {ctx.author.voice.channel.name}.")
                  await ctx.invoke(self.join_command) # Attempt to join user's channel
                  state = self.get_guild_state(ctx.guild.id) # Re-fetch state AFTER join attempt
                  if not state.voice_client or not state.voice_client.is_connected(): # Check if join succeeded
-                      logger.warning(f"[{ctx.guild.id}] Failed to join VC after invoking join_command.")
-                      # No need to send message here, join_command likely did or failed silently
-                      return # Stop processing if join failed
+                      logger.warning(f"{log_prefix} Failed to join VC after invoking join_command.")
+                      return # Stop processing if join failed (join_command likely sent message)
+                 else:
+                      logger.info(f"{log_prefix} Successfully joined VC after invoke.")
             else:
-                logger.warning(f"[{ctx.guild.id}] Play command failed: User not in VC and bot not connected.")
+                logger.warning(f"{log_prefix} Failed: User not in VC and bot not connected.")
                 return await ctx.send("You need to be in a voice channel for me to join.")
         elif ctx.author.voice and ctx.author.voice.channel != state.voice_client.channel:
-             logger.warning(f"[{ctx.guild.id}] Play command failed: User in different VC ({ctx.author.voice.channel.name}) than bot ({state.voice_client.channel.name}).")
+             logger.warning(f"{log_prefix} Failed: User in different VC ({ctx.author.voice.channel.name}) than bot ({state.voice_client.channel.name}).")
              return await ctx.send(f"You must be in the same voice channel ({state.voice_client.channel.mention}) as me to add songs.")
         elif not ctx.author.voice or ctx.author.voice.channel != state.voice_client.channel:
-             # Case where bot is connected, but user is not in the bot's channel (or any channel)
-              logger.warning(f"[{ctx.guild.id}] Play command failed: User not in bot's VC.")
+              logger.warning(f"{log_prefix} Failed: User not in bot's VC.")
               return await ctx.send(f"You need to be in {state.voice_client.channel.mention} to add songs.")
+        else:
+             logger.info(f"{log_prefix} Bot already connected to {state.voice_client.channel.name}. Proceeding.")
 
+        # --- Extraction Phase ---
+        song_info = None # Initialize song_info
+        logger.debug(f"{log_prefix} Entering extraction phase.")
+        try:
+            async with ctx.typing(): # Show typing indicator during extraction
+                logger.debug(f"{log_prefix} Now calling _extract_song_info...")
+                song_info = await self._extract_song_info(query)
+                logger.debug(f"{log_prefix} _extract_song_info call finished.") # Log immediately after call returns
 
-        # 2. Extract Song Info
-        logger.debug(f"[{ctx.guild.id}] Calling _extract_song_info for query: {query}")
-        async with ctx.typing():
-            song_info = await self._extract_song_info(query)
+        except Exception as e:
+            # Catch ANY exception during the extraction process itself (including within ctx.typing)
+            logger.error(f"{log_prefix} Exception occurred DURING _extract_song_info call or ctx.typing: {e}", exc_info=True)
+            await ctx.send("An unexpected error occurred while trying to fetch the song information.")
+            return # Stop processing if extraction itself failed critically
 
-            # --- Log result of extraction ---
-            logger.debug(f"[{ctx.guild.id}] _extract_song_info returned: {song_info}")
-            # ---
+        # --- Process Extraction Result ---
+        logger.debug(f"{log_prefix} Processing result from _extract_song_info. Result: {song_info}")
 
-            if not song_info:
-                logger.warning(f"[{ctx.guild.id}] _extract_song_info failed to return info for query: {query}")
-                return await ctx.send("Could not retrieve song information. The URL might be invalid, private, or the service unavailable.")
-            if song_info.get('error'):
-                 error_type = song_info['error']
-                 logger.warning(f"[{ctx.guild.id}] _extract_song_info returned error: {error_type} for query: {query}")
-                 if error_type == 'unsupported': msg = "Sorry, I don't support that URL or service."
-                 elif error_type == 'unavailable': msg = "That video is unavailable (maybe private or deleted)."
-                 elif error_type == 'download': msg = "There was an error trying to access the song data."
-                 elif error_type == 'age_restricted': msg = "Sorry, I can't play age-restricted content."
-                 else: msg = "An unknown error occurred while fetching the song."
-                 return await ctx.send(msg)
+        if not song_info:
+            logger.warning(f"{log_prefix} _extract_song_info returned None or empty for query: {query}")
+            return await ctx.send("Could not retrieve valid song information. The URL might be invalid, private, or the service unavailable.")
+        if song_info.get('error'):
+             error_type = song_info['error']
+             logger.warning(f"{log_prefix} _extract_song_info returned error: {error_type} for query: {query}")
+             # ... (error message sending remains the same) ...
+             if error_type == 'unsupported': msg = "Sorry, I don't support that URL or service."
+             elif error_type == 'unavailable': msg = "That video is unavailable (maybe private or deleted)."
+             elif error_type == 'download': msg = "There was an error trying to access the song data (check logs for details)."
+             elif error_type == 'age_restricted': msg = "Sorry, I can't play age-restricted content."
+             else: msg = "An unknown error occurred while fetching the song."
+             return await ctx.send(msg)
 
-            # --- Log before creating Song object ---
-            logger.debug(f"[{ctx.guild.id}] Creating Song object with info: Title='{song_info.get('title')}', URL='{song_info.get('source_url')}'")
-            # ---
-            try:
-                song = Song(
-                    source_url=song_info['source_url'],
-                    title=song_info['title'],
-                    webpage_url=song_info['webpage_url'],
-                    duration=song_info['duration'],
-                    requester=ctx.author
-                )
-            except KeyError as e:
-                 logger.error(f"[{ctx.guild.id}] Missing key in song_info dict: {e}. Info: {song_info}")
-                 return await ctx.send("Failed to process song information after fetching.")
-            except Exception as e:
-                 logger.error(f"[{ctx.guild.id}] Error creating Song object: {e}. Info: {song_info}", exc_info=True)
-                 return await ctx.send("An internal error occurred preparing the song.")
+        # --- Create Song Object ---
+        logger.debug(f"{log_prefix} Creating Song object with info: Title='{song_info.get('title')}', URL='{song_info.get('source_url')}'")
+        try:
+            song = Song(
+                source_url=song_info.get('source_url'), # Use .get for safety
+                title=song_info.get('title', 'Unknown Title'),
+                webpage_url=song_info.get('webpage_url', query),
+                duration=song_info.get('duration'),
+                requester=ctx.author
+            )
+            # Validate essential parts
+            if not song.source_url or not song.title:
+                 logger.error(f"{log_prefix} Failed to create valid Song object (missing URL or Title). Info: {song_info}")
+                 return await ctx.send("Failed to process song information (missing critical data).")
 
+        except Exception as e:
+             logger.error(f"{log_prefix} Error creating Song object: {e}. Info: {song_info}", exc_info=True)
+             return await ctx.send("An internal error occurred preparing the song.")
 
-        # 3. Add to Queue and Signal Playback Loop
+        # --- Add to Queue ---
+        logger.debug(f"{log_prefix} Attempting to add Song to queue.")
         async with state._lock:
             state.queue.append(song)
             queue_pos = len(state.queue)
-            # --- Log adding to queue ---
-            logger.info(f"[{ctx.guild.id}] Added '{song.title}' to queue at position {queue_pos}. Queue size now: {len(state.queue)}")
-            # ---
+            logger.info(f"{log_prefix} Added '{song.title}' to queue at position {queue_pos}. Queue size now: {len(state.queue)}")
 
             embed = nextcord.Embed(
+                 # Change title slightly based on if something is already playing/queued
                 title="Added to Queue" if (state.current_song or queue_pos > 1) else "Now Playing",
                 description=f"[{song.title}]({song.webpage_url})",
                 color=nextcord.Color.green()
@@ -625,12 +636,15 @@ class MusicCog(commands.Cog, name="Music"):
 
             try: # Send feedback message
                 await ctx.send(embed=embed)
+                logger.debug(f"{log_prefix} Sent 'Added to Queue' embed.")
             except nextcord.HTTPException as e:
-                 logger.error(f"[{ctx.guild.id}] Failed to send 'Added to Queue' message: {e}")
+                 logger.error(f"{log_prefix} Failed to send 'Added to Queue' message: {e}")
 
 
             # Ensure the playback loop is running and signal it if necessary
-            state.start_playback_loop() # Starts if not running
+            logger.debug(f"{log_prefix} Ensuring playback loop is started.")
+            state.start_playback_loop() # Starts if not running / ensures event is set
+            logger.debug(f"{log_prefix} play_command finished successfully.") # Final log for success
 
 
     @commands.command(name='skip', aliases=['s'], help="Skips the currently playing song.")
