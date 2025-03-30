@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # <--- ADD THIS LINE to fetch all history and tags
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -46,11 +48,9 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          # --- CONDITIONALLY SET PLATFORMS (Alternative Syntax) ---
-          platforms: ${{ github.ref_name == 'main' && 'linux/amd64,linux/arm64' || 'linux/amd64' }} # <--- TRY THIS VERSION
-          # Only push when the event is a push to the specific branches
+          platforms: ${{ github.ref_name == 'main' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           push: ${{ github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'nightly') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # cache-from: type=gha
+          # cache-from: type=gha # Consider enabling caching once it works
           # cache-to: type=gha,mode=max

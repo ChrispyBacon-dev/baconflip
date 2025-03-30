@@ -8,18 +8,28 @@ ENV PYTHONUNBUFFERED 1
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies if needed (e.g., for hiredis or other C extensions)
-# RUN apt-get update && apt-get install -y --no-install-recommends gcc build-essential && rm -rf /var/lib/apt/lists/*
+# --- Install git ---
+# GitPython requires the git executable to be installed in the container's OS.
+# Combine update, install, and cleanup into one RUN layer to reduce image size.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    # Clean up apt cache to keep the image smaller
+    rm -rf /var/lib/apt/lists/*
 
-# Install uvloop and project requirements
+# --- Install Python Dependencies ---
+# Copy requirements first to leverage Docker layer caching if requirements don't change
 COPY requirements.txt .
-# Consider using --no-cache-dir for smaller final image size
-RUN pip install --upgrade pip && \
-    pip install uvloop && \
-    pip install -r requirements.txt
+# Install uvloop and project requirements using --no-cache-dir for smaller final image
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir uvloop && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy the bot code into the container
-COPY ./bot /app/bot
+# --- Copy Application Code ---
+# Copy the ENTIRE project context (including the .git directory) into the WORKDIR
+# Make sure you run `docker build` from the ROOT of your project directory
+# (the directory that contains your .git folder, bot folder, Dockerfile, requirements.txt etc.)
+COPY . .
 
-# Command to run the bot using uvloop
+# --- Run Command ---
+# Command to run the bot using module execution (assumes bot/bot.py exists)
 CMD ["python", "-m", "bot.bot"]
