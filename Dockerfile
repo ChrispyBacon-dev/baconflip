@@ -16,6 +16,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         git \
         libopus-dev \
+        libopus0 \
         ffmpeg \
     && \
     # Clean up apt cache to keep the image smaller
