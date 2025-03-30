@@ -1,4 +1,4 @@
-# .git # Keep .git *unless* you bake version at build time (we need it runtime)
+# .git # Keep .git *unless* you bake version at build time
 __pycache__/
 *.pyc
 *.pyo
