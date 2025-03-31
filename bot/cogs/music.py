@@ -142,12 +142,12 @@ class GuildMusicState:
                 logger.info(f"{log_prefix} Attempting to play: {song_to_play.title}")
                 source = None
                 try:
-                    logger.debug(f"{log_prefix} Creating FFmpegOpusAudio source for URL: {song_to_play.source_url}")
-                    original_source = await nextcord.FFmpegOpusAudio.from_probe(
+                    logger.debug(f"{log_prefix} Creating FFmpegPCMAudio source for URL: {song_to_play.source_url}")
+                    original_source = nextcord.FFmpegPCMAudio(
                         song_to_play.source_url,
                         before_options=FFMPEG_BEFORE_OPTIONS,
                         options=FFMPEG_OPTIONS,
-                        method='fallback'
+                        # method='fallback'
                     )
                     source = nextcord.PCMVolumeTransformer(original_source, volume=self.volume)
                     logger.debug(f"{log_prefix} Source created successfully.")
