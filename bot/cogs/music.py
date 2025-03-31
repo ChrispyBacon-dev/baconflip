@@ -852,6 +852,7 @@ class MusicCog(commands.Cog, name="Music"):
                 logger.debug(f"{log_prefix} Re-extraction successful for '{title}'.")
             except Exception as e:
                 logger.error(f"{log_prefix} Error during re-extraction for '{title}': {e}", exc_info=True)
+<<<<<<< HEAD
                 return None
 
         processed_data = None
@@ -867,6 +868,12 @@ class MusicCog(commands.Cog, name="Music"):
              return None
 
         logger.debug(f"{log_prefix} Searching for stream URL in processed data for: '{title}'")
+=======
+                return None # Failed to process this entry
+
+        # --- Find Best Audio Stream URL ---
+        logger.debug(f"{log_prefix} Processing entry: '{title}'")
+>>>>>>> parent of 4f42cd8 (_process_entry)
         stream_url = None
         entry_to_search = processed_data
 
