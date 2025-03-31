@@ -474,28 +474,29 @@ class MusicCog(commands.Cog, name="Music"):
         except Exception as e:
             logger.error(f"{log_prefix} Error creating Song object for {entry_title_for_logs}: {e}", exc_info=True)
             return None
-
-    # --- Modified Function to Extract Info (Handles Single/Playlist) ---
+    ##################################
+# --- Modified Function to Extract Info (Handles Single/Playlist with re-processing for singles) ---
     async def _extract_info(self, query: str, requester: nextcord.Member) -> tuple[str | None, list[Song]]:
         """
         Extracts info using yt-dlp. Handles single videos and playlists.
-        Returns: (playlist_title, list_of_songs)
-        Returns (None, []) on major failure or if no valid songs found.
+        For single videos, it ensures full processing for better format selection.
+        Returns: (playlist_title_or_error_code, list_of_songs)
+        Returns (error_code, []) on major failure or if no valid songs found.
         """
         log_prefix = f"[{self.bot.user.id or 'Bot'}] YTDL:"
-        logger.info(f"{log_prefix} Attempting to extract info requested by {requester.name} for query: '{query}'")
+        logger.info(f"{log_prefix} Attempting info extraction requested by {requester.name} for query: '{query}'")
         songs = []
         playlist_title = None
 
         try:
             loop = asyncio.get_event_loop()
-            # Use the main YDL instance (noplaylist=False, extract_flat=True)
-            partial = functools.partial(self.ydl.extract_info, query, download=False, process=False) # process=False with extract_flat
-            data = await loop.run_in_executor(None, partial)
+            # Initial call with process=False (efficient for playlists with extract_flat)
+            partial_no_process = functools.partial(self.ydl.extract_info, query, download=False, process=False)
+            data = await loop.run_in_executor(None, partial_no_process)
 
             if not data:
                 logger.warning(f"{log_prefix} yt-dlp returned no data for query: {query}")
-                return None, []
+                return "err_nodata", [] # Return specific error code
 
             # --- Check for Playlist ---
             entries_to_process = data.get('entries')
@@ -506,68 +507,89 @@ class MusicCog(commands.Cog, name="Music"):
                 # Handle potential generator (common with process=False)
                 if not isinstance(entries_to_process, list):
                     logger.debug(f"{log_prefix} Entries is a generator, iterating...")
-                    # Process generator directly instead of converting to list first
+                    # Process generator directly
                 else:
                     logger.debug(f"{log_prefix} Entries is a list, iterating...")
 
-
                 processed_count = 0
-                original_count = 0 # Keep track of how many entries we attempt to process
+                original_count = 0
 
-                # Use enumerate if we need index later, otherwise simple loop is fine
                 for entry in entries_to_process:
                     original_count += 1
-                    if entry: # Basic check if entry is not None
-                        # Pass the single entry to be processed (may involve re-extraction)
+                    if entry:
+                        # Pass the potentially flat entry to _process_entry
+                        # _process_entry handles re-extraction if necessary
                         song = await self._process_entry(entry, requester)
                         if song:
                             songs.append(song)
                             processed_count += 1
-                            # Optional: Small sleep if hitting rate limits during re-extraction
-                            # await asyncio.sleep(0.05)
+                            # await asyncio.sleep(0.05) # Optional delay
                     else:
                         logger.warning(f"{log_prefix} Found a null entry in playlist data, skipping.")
 
                 logger.info(f"{log_prefix} Finished processing playlist '{playlist_title}'. Added {processed_count} valid songs out of {original_count} entries.")
-                if processed_count == 0:
+                if processed_count == 0 and original_count > 0:
                      logger.warning(f"{log_prefix} No valid songs could be processed from the playlist.")
-                     # playlist_title remains set, but songs list is empty
+                     # Playlist title is known, but no songs were added
 
-            # --- Handle Single Video/Search Result ---
-            elif data.get('url') or data.get('formats'): # Check if it looks like a single video entry
-                logger.info(f"{log_prefix} Single entry detected (or search result). Processing...")
-                # Pass the whole data dictionary to be processed
-                song = await self._process_entry(data, requester)
-                if song:
-                    songs.append(song)
-                    logger.info(f"{log_prefix} Successfully processed single entry: {song.title}")
-                else:
-                    logger.warning(f"{log_prefix} Failed to process single entry.")
+            # --- Handle Single Video/Search Result (Re-extract with processing) ---
             else:
-                 # This might happen for channel URLs or unsupported types
-                 logger.warning(f"{log_prefix} Extracted data doesn't look like a playlist or a playable video entry. Keys: {data.keys()}")
-                 return None, []
+                logger.info(f"{log_prefix} Single entry detected or search result. Re-extracting with processing enabled...")
+                try:
+                    # Re-extract *without* process=False to let yt-dlp select formats properly
+                    # Use the same YDL instance
+                    partial_process = functools.partial(self.ydl.extract_info, query, download=False) # process=True is default
+                    processed_data = await loop.run_in_executor(None, partial_process)
 
+                    if not processed_data:
+                         logger.warning(f"{log_prefix} Re-extraction for single entry yielded no data.")
+                         # Map error based on original data if possible, otherwise generic
+                         # (This case is less likely if the first call returned data)
+                         return "err_nodata_reextract", []
 
+                    # Now process the *fully processed* data using the same helper
+                    song = await self._process_entry(processed_data, requester)
+                    if song:
+                        songs.append(song)
+                        logger.info(f"{log_prefix} Successfully processed single entry: {song.title}")
+                    else:
+                        logger.warning(f"{log_prefix} Failed to process single entry even after re-extraction.")
+                        # If _process_entry failed on processed data, it's likely unplayable/bad format
+                        return "err_process_single_failed", []
+
+                except yt_dlp.utils.DownloadError as e_single:
+                     # Handle errors during the second (processing) extraction
+                     logger.error(f"{log_prefix} YTDL DownloadError during single entry re-extraction for '{query}': {e_single}")
+                     err_str = str(e_single).lower()
+                     # Map specific errors
+                     if "unsupported url" in err_str: error_code = 'unsupported'
+                     elif "video unavailable" in err_str: error_code = 'unavailable'
+                     elif "private video" in err_str: error_code = 'private'
+                     elif "confirm your age" in err_str: error_code = 'age_restricted'
+                     elif "unable to download webpage" in err_str: error_code = 'network'
+                     else: error_code = 'download_single'
+                     return f"err_{error_code}", []
+                except Exception as e_single:
+                     logger.error(f"{log_prefix} Unexpected error during single entry re-extraction for '{query}': {e_single}", exc_info=True)
+                     return "err_extraction_single", []
+
+            # --- Final Return ---
+            # Return playlist title (if any) and the list of songs
+            # If songs list is empty but playlist_title is set, play_command handles feedback
             return playlist_title, songs
 
-        except yt_dlp.utils.DownloadError as e:
-            logger.error(f"{log_prefix} YTDL DownloadError for '{query}': {e}")
-            # Map specific errors if needed for user feedback
-            err_str = str(e).lower()
+        except yt_dlp.utils.DownloadError as e_initial:
+            # Handle errors during the *initial* (no-process) extraction
+            logger.error(f"{log_prefix} YTDL DownloadError during initial extraction for '{query}': {e_initial}")
+            err_str = str(e_initial).lower()
+            # Map specific errors
             if "unsupported url" in err_str: error_code = 'unsupported'
-            elif "video unavailable" in err_str: error_code = 'unavailable'
-            elif "private video" in err_str: error_code = 'private'
-            elif "confirm your age" in err_str: error_code = 'age_restricted'
-            elif "unable to download webpage" in err_str: error_code = 'network'
-            else: error_code = 'download'
-            # Return the error code along with empty list (play command can use this)
+            # ... (add other specific error checks if needed for initial call) ...
+            else: error_code = 'download_initial'
             return f"err_{error_code}", []
-        except Exception as e:
-            logger.error(f"{log_prefix} Unexpected error extracting info for '{query}': {e}", exc_info=True)
-            # Return generic error code
-            return "err_extraction", []
-
+        except Exception as e_initial:
+            logger.error(f"{log_prefix} Unexpected error during initial extraction for '{query}': {e_initial}", exc_info=True)
+            return "err_extraction_initial", []
 
     # --- Listener for Voice State Updates ---
     @commands.Cog.listener()
