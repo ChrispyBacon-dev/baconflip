@@ -1433,6 +1433,7 @@ class MusicCog(commands.Cog, name="Music"):
 # --- Setup Function ---
 def setup(bot: commands.Bot):
 <<<<<<< HEAD
+<<<<<<< HEAD
     """Adds the MusicCog to the bot."""
     # (Using the corrected manual Opus load from previous step)
     OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # Confirmed path
@@ -1477,5 +1478,59 @@ def setup(bot: commands.Bot):
     try: bot.add_cog(MusicCog(bot)); logger.info("MusicCog added.")
     except Exception as e: logger.critical(f"CRITICAL: Failed add MusicCog: {e}", exc_info=True)
 >>>>>>> 0e2c011 (fix)
+=======
+    """Adds the MusicCog to the bot."""
+    # --- Opus Loading ---
+    # Specify path explicitly because automatic detection failed for this user
+    OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # *** USE YOUR ACTUAL PATH HERE ***
+
+    try: # Outer try for overall safety during Opus check/load
+        if not nextcord.opus.is_loaded():
+            logger.info(f"Opus not loaded. Attempting to load manually from: {OPUS_PATH}")
+            # Inner try specifically for the load_opus call
+            try:
+                # Correct indentation for the load attempt
+                if nextcord.opus.load_opus(OPUS_PATH):
+                     logger.info("Opus library loaded successfully from manual path.")
+                else:
+                     # Although load_opus usually raises OpusNotLoaded on failure rather than returning False,
+                     # handle the False case defensively.
+                     logger.critical(f"CRITICAL: nextcord.opus.load_opus({OPUS_PATH}) returned False. Voice will not work.")
+                     # You might want to prevent the cog from loading if Opus fails:
+                     raise commands.ExtensionError(f"Opus load returned False for path: {OPUS_PATH}")
+
+            # Correct indentation for the except blocks catching errors from load_opus
+            except nextcord.opus.OpusNotLoaded:
+                 logger.critical(f"CRITICAL: Opus library not found or failed to load at specified path: {OPUS_PATH}. Voice will not work.")
+                 # Raise an error to prevent the cog from loading without Opus
+                 raise commands.ExtensionError(f"Opus library not found or failed to load at: {OPUS_PATH}")
+            except Exception as e_opus:
+                 # Catch any other unexpected errors during the load attempt
+                 logger.critical(f"CRITICAL: Unexpected error loading Opus from {OPUS_PATH}: {e_opus}", exc_info=True)
+                 raise commands.ExtensionError(f"Unexpected error loading Opus from {OPUS_PATH}: {e_opus}") from e_opus
+        else:
+            # If opus is already loaded (e.g., by another cog or previous run)
+            logger.info("Opus library already loaded.")
+
+    except Exception as e:
+        # Catch potential errors from is_loaded() itself, or re-raised errors from inner block
+        logger.critical(f"CRITICAL: An unexpected error occurred during Opus check/load setup: {e}", exc_info=True)
+        # Re-raise or raise ExtensionError to signal failure
+        if isinstance(e, commands.ExtensionError):
+             raise e # Re-raise the specific ExtensionError from inner block
+        else:
+             raise commands.ExtensionError(f"Opus check/load setup failed: {e}") from e
+
+
+    # --- Add Cog ---
+    # This part only runs if Opus loading succeeded or was already loaded without critical errors above
+    try:
+        bot.add_cog(MusicCog(bot))
+        logger.info("MusicCog added successfully.")
+    except Exception as e:
+        logger.critical(f"CRITICAL: Failed to add MusicCog to the bot: {e}", exc_info=True)
+        # This failure is critical, maybe raise it so bot owner knows
+        raise commands.ExtensionFailed(name="bot.cogs.music", original=e) from e
+>>>>>>> parent of 0e2c011 (fix)
 
 # --- End of File ---
