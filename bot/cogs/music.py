@@ -8,7 +8,7 @@ import yt_dlp
 import logging
 import functools
 from collections import deque
-from typing import TYPE_CHECKING # For type hinting MusicCog in View
+from typing import TYPE_CHECKING, Union # For type hinting MusicCog in View
 
 # --- Type Hinting Forward Reference ---
 if TYPE_CHECKING:
@@ -72,7 +72,7 @@ class MusicPlayerView(nextcord.ui.View):
         self._update_buttons() # Set initial button state
 
     # Helper to safely get the current guild state
-    def _get_state(self) -> 'GuildMusicState' | None: # Use forward reference string
+     def _get_state(self) -> Union['GuildMusicState', None]: # Use forward Union reference string
         # Access guild_states from the cog instance passed during init
         if self.music_cog:
              return self.music_cog.guild_states.get(self.guild_id)
