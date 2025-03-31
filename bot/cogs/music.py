@@ -901,7 +901,20 @@ class MusicCog(commands.Cog, name="Music"):
             except Exception as e:
                 logger.error(f"{log_prefix} Error during re-extraction for '{title}': {e}", exc_info=True)
                 return None # Failed to process this entry
-
+        processed_data = None
+        try:
+             logger.debug(f"{log_prefix} Running process_ie_result for '{title}'...")
+             # Use the main self.ydl instance to process the entry data we have
+             processed_data = self.ydl.process_ie_result(entry_data, download=False)
+             if not processed_data:
+                  logger.warning(f"{log_prefix} process_ie_result returned None for '{title}'.")
+                  return None # Cannot proceed if processing fails
+             logger.debug(f"{log_prefix} process_ie_result completed.")
+        except Exception as process_err:
+             logger.error(f"{log_prefix} Error during process_ie_result for '{title}': {process_err}", exc_info=True)
+             # Fallback: Maybe try using the original entry_data if processing failed? Or just fail here?
+             # Let's fail for now, as processed data is usually needed.
+             return None
         # --- Find Best Audio Stream URL ---
         logger.debug(f"{log_prefix} Processing entry: '{title}'")
         stream_url = None
