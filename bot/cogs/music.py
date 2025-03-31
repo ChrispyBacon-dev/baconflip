@@ -1106,48 +1106,27 @@ class MusicCog(commands.Cog, name="Music"):
 # --- Setup Function ---
 def setup(bot: commands.Bot):
     """Adds the MusicCog to the bot."""
-    # Opus Loading
+    OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # Confirmed path
+
     try:
         if not nextcord.opus.is_loaded():
-            logger.info("Opus library not loaded. Attempting to load...")
-            try:
-                 nextcord.opus.load_opus()
-                 logger.info("Opus library loaded successfully using default load_opus().")
-            except nextcord.opus.OpusNotLoaded:
-                 logger.warning("Default Opus load failed. Trying common paths...")
-                 opus_paths = [
-                     '/usr/lib/x86_64-linux-gnu/libopus.so.0',
-                     '/usr/lib/libopus.so.0',
-                     'libopus-0.x64.dll',
-                     'libopus-0.x86.dll',
-                     'libopus.0.dylib',
-                     'opus' # Sometimes just 'opus' works on PATH
-                 ]
-                 loaded = False
-                 for path in opus_paths:
-                     try:
-                         nextcord.opus.load_opus(path)
-                         logger.info(f"Opus manually loaded successfully from: {path}")
-                         loaded = True
-                         break
-                     except nextcord.opus.OpusNotFound: continue # Try next path
-                     except nextcord.opus.OpusLoadError as e: logger.error(f"Error loading Opus from {path}: {e}")
-                     except Exception as e: logger.error(f"Unexpected error loading Opus from {path}: {e}")
-
-                 if not loaded:
-                      logger.critical("CRITICAL: Failed to load Opus library. Voice functionality WILL NOT work.")
-                      # Consider raising an error to prevent cog loading if Opus is mandatory
-                      # raise RuntimeError("Could not load libopus.")
+            logger.info(f"Opus not auto-loaded. Attempting manual load from: {OPUS_PATH}")
+            nextcord.opus.load_opus(OPUS_PATH)
+            if nextcord.opus.is_loaded():
+                 logger.info("Opus manually loaded successfully.")
+            else:
+                 logger.critical("Manual Opus load attempt finished, but is_loaded() is still false.")
         else:
-            logger.info("Opus library was already loaded.")
-    except Exception as e:
-         logger.critical(f"CRITICAL: Unexpected error during Opus loading check: {e}", exc_info=True)
+            logger.info("Opus library was already loaded automatically.")
 
-    # Add Cog
-    try:
-        bot.add_cog(MusicCog(bot))
-        logger.info("MusicCog added to bot successfully.")
+    except nextcord.opus.OpusNotLoaded as e:
+        logger.critical(f"CRITICAL: Manual Opus load failed using path '{OPUS_PATH}'. Error: {e}. "
+                        "Ensure the path is correct and the library file is valid and has correct permissions inside the container.")
     except Exception as e:
-         logger.critical(f"CRITICAL: Failed to add MusicCog to bot: {e}", exc_info=True)
+         logger.critical(f"CRITICAL: An unexpected error occurred during manual Opus load attempt: {e}", exc_info=True)
+
+    bot.add_cog(MusicCog(bot))
+    logger.info("MusicCog added to bot.")
+
 
 # --- End of File ---
