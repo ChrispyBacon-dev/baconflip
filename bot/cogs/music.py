@@ -617,35 +617,58 @@ class MusicCog(commands.Cog, name="Music"):
              return await ctx.send("An internal error occurred preparing the song.")
 
         # --- Add to Queue ---
-        logger.debug(f"{log_prefix} Attempting to add Song to queue.")
+        logger.debug(f"{log_prefix} Attempting to acquire lock to add Song to queue.")
+        added_successfully = False
+        song_title_for_embed = song.title # Store info needed outside lock
+        song_url_for_embed = song.webpage_url
+        song_duration_for_embed = song.format_duration()
+        requester_name = song.requester.display_name
+        requester_icon = song.requester.display_avatar.url
+        queue_pos = 0 # Initialize
+
         async with state._lock:
+            logger.debug(f"{log_prefix} Lock acquired. Adding to queue.")
             state.queue.append(song)
-            queue_pos = len(state.queue)
-            logger.info(f"{log_prefix} Added '{song.title}' to queue at position {queue_pos}. Queue size now: {len(state.queue)}")
+            queue_pos = len(state.queue) # Get position while holding lock
+            added_successfully = True
+            logger.info(f"{log_prefix} Added '{song_title_for_embed}' to queue at position {queue_pos}. Queue size now: {len(state.queue)}")
+            # --- LOCK RELEASED HERE ---
+        logger.debug(f"{log_prefix} Lock released.")
 
-            embed = nextcord.Embed(
-                 # Change title slightly based on if something is already playing/queued
-                title="Added to Queue" if (state.current_song or queue_pos > 1) else "Now Playing",
-                description=f"[{song.title}]({song.webpage_url})",
-                color=nextcord.Color.green()
-            )
-            embed.add_field(name="Duration", value=song.format_duration(), inline=True)
-            if queue_pos > 1 or state.current_song: # Only show position if not first in queue
-                embed.add_field(name="Position", value=f"#{queue_pos}", inline=True)
-            embed.set_footer(text=f"Requested by {song.requester.display_name}", icon_url=song.requester.display_avatar.url)
+        # --- Send Feedback Message (Outside Lock) ---
+        if added_successfully:
+            logger.debug(f"{log_prefix} Preparing 'Added to Queue' embed.")
+            try:
+                is_now_playing = (not state.current_song and queue_pos == 1)
+                embed = nextcord.Embed(
+                    title="Now Playing" if is_now_playing else "Added to Queue",
+                    description=f"[{song_title_for_embed}]({song_url_for_embed})",
+                    color=nextcord.Color.green()
+                )
+                embed.add_field(name="Duration", value=song_duration_for_embed, inline=True)
+                # Only show position if not first in queue and now playing
+                if not is_now_playing:
+                    embed.add_field(name="Position", value=f"#{queue_pos}", inline=True)
+                embed.set_footer(text=f"Requested by {requester_name}", icon_url=requester_icon)
 
-            try: # Send feedback message
                 await ctx.send(embed=embed)
                 logger.debug(f"{log_prefix} Sent 'Added to Queue' embed.")
             except nextcord.HTTPException as e:
                  logger.error(f"{log_prefix} Failed to send 'Added to Queue' message: {e}")
+            except Exception as e:
+                 logger.error(f"{log_prefix} Unexpected error sending embed: {e}", exc_info=True)
+        else:
+             # Should not happen with current logic, but good practice
+             logger.error(f"{log_prefix} Failed to add song to queue (logic error?).")
+             # await ctx.send("There was an internal error adding the song to the queue.") # Optional user feedback
 
-
-            # Ensure the playback loop is running and signal it if necessary
+        # --- Ensure loop starts ---
+        if added_successfully:
             logger.debug(f"{log_prefix} Ensuring playback loop is started.")
             state.start_playback_loop() # Starts if not running / ensures event is set
             logger.debug(f"{log_prefix} play_command finished successfully.") # Final log for success
-
+        else:
+             logger.warning(f"{log_prefix} play_command finished WITHOUT adding song.")
 
     @commands.command(name='skip', aliases=['s'], help="Skips the currently playing song.")
     @commands.guild_only()
