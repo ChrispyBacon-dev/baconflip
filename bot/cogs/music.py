@@ -1432,6 +1432,7 @@ class MusicCog(commands.Cog, name="Music"):
 
 # --- Setup Function ---
 def setup(bot: commands.Bot):
+<<<<<<< HEAD
     """Adds the MusicCog to the bot."""
     # (Using the corrected manual Opus load from previous step)
     OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # Confirmed path
@@ -1465,5 +1466,16 @@ def setup(bot: commands.Bot):
         logger.critical(f"CRITICAL: Failed to add MusicCog to the bot: {e}", exc_info=True)
         raise commands.ExtensionFailed(name="bot.cogs.music", original=e) from e
 # --- End Setup Function ---
+=======
+    OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # Adjust if needed
+    try:
+        if not nextcord.opus.is_loaded(): logger.info(f"Opus trying path: {OPUS_PATH}"); nextcord.opus.load_opus(OPUS_PATH)
+        if nextcord.opus.is_loaded(): logger.info("Opus loaded.")
+        else: logger.critical("Opus load attempt failed.")
+    except nextcord.opus.OpusNotLoaded: logger.critical(f"CRITICAL: Opus lib not found at '{OPUS_PATH}' or failed load.")
+    except Exception as e: logger.critical(f"CRITICAL: Opus load failed: {e}", exc_info=True)
+    try: bot.add_cog(MusicCog(bot)); logger.info("MusicCog added.")
+    except Exception as e: logger.critical(f"CRITICAL: Failed add MusicCog: {e}", exc_info=True)
+>>>>>>> 0e2c011 (fix)
 
 # --- End of File ---
