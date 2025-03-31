@@ -85,47 +85,137 @@ class GuildMusicState:
         self._playback_task: asyncio.Task | None = None # Task running the playback loop
         self._lock = asyncio.Lock() # To prevent race conditions
 
-    async def _playback_loop(self):
+async def _playback_loop(self):
         """The main loop that plays songs from the queue."""
         await self.bot.wait_until_ready()
-        logger.info(f"[{self.guild_id}] Playback loop starting.") # Log loop start
+        logger.info(f"[{self.guild_id}] Playback loop starting.")
 
         while True:
             self.play_next_song.clear()
-            log_prefix = f"[{self.guild_id}] Loop:" # Prefix for loop logs
+            log_prefix = f"[{self.guild_id}] Loop:"
             logger.debug(f"{log_prefix} Top of loop, play_next_song cleared.")
             song_to_play = None
+            vc_valid = False # Flag to check if VC is usable
 
-            async with self._lock:
-                logger.debug(f"{log_prefix} Lock acquired for queue check.")
-                queue_is_empty = not self.queue
-                if not queue_is_empty:
-                    song_to_play = self.queue.popleft()
-                    self.current_song = song_to_play
-                    logger.info(f"{log_prefix} Popped '{song_to_play.title}'. Queue size: {len(self.queue)}")
-                else:
-                     logger.debug(f"{log_prefix} Queue is empty.")
-                     self.current_song = None
-                # LOCK RELEASED HERE
-            logger.debug(f"{log_prefix} Lock released after queue check.")
+            # --- Check Voice Client State Early ---
+            if self.voice_client and self.voice_client.is_connected():
+                 vc_valid = True
+                 # Also check if it's already playing - helps prevent immediate error later
+                 if self.voice_client.is_playing():
+                      logger.debug(f"{log_prefix} VC is already playing. Waiting for song end signal.")
+                      # Wait here for the signal, otherwise we might pop prematurely
+                      await self.play_next_song.wait()
+                      logger.debug(f"{log_prefix} play_next_song event received after waiting because VC was playing.")
+                      # Loop will continue and re-evaluate state
+                      continue
+                 elif self.voice_client.is_paused():
+                      logger.debug(f"{log_prefix} VC is paused. Waiting for signal.")
+                      await self.play_next_song.wait()
+                      logger.debug(f"{log_prefix} play_next_song event received while paused.")
+                      continue # Re-evaluate state (e.g., resume might have happened)
+
+            elif not self.voice_client or not self.voice_client.is_connected():
+                logger.warning(f"{log_prefix} Voice client seems disconnected at top of loop. Checking queue before exiting.")
+                # Check if there was a song ready to play - put it back
+                async with self._lock:
+                     if self.current_song:
+                          logger.warning(f"{log_prefix} Putting potentially popped song '{self.current_song.title}' back in queue due to VC disconnect.")
+                          self.queue.appendleft(self.current_song)
+                          self.current_song = None
+                # Loop should exit naturally or cleanup should handle it
+                logger.warning(f"{log_prefix} VC disconnected, stopping loop.")
+                return # Exit loop
 
 
-            if queue_is_empty:
-                logger.info(f"{log_prefix} Queue empty, pausing loop. Waiting for play_next_song event...")
-                # --- Temporarily Disable Inactivity Timeout ---
-                # try:
-                #     # await asyncio.wait_for(self.play_next_song.wait(), timeout=300.0) # Wait 5 mins
-                # except asyncio.TimeoutError:
-                #      # Check condition again after timeout ONLY IF VC still exists
-                #      if self.voice_client and not self.queue and not self.voice_client.is_playing():
-                #          logger.info(f"[{self.guild_id}] No activity timeout. Cleaning up.")
-                #          # Need to handle cleanup carefully to avoid race conditions
-                #          # self.bot.loop.create_task(self.cleanup_from_inactivity())
-                #          return # Exit the loop
-                await self.play_next_song.wait() # Wait indefinitely for now
-                # --- End Temporary Disable ---
-                logger.info(f"{log_prefix} play_next_song event received while paused. Continuing loop.")
-                continue # Re-check queue
+            # --- Get Song (if VC is valid) ---
+            if vc_valid:
+                async with self._lock:
+                    logger.debug(f"{log_prefix} Lock acquired for queue check.")
+                    if self.queue:
+                        song_to_play = self.queue.popleft()
+                        self.current_song = song_to_play
+                        logger.info(f"{log_prefix} Popped '{song_to_play.title}'. Queue size: {len(self.queue)}")
+                    else:
+                        logger.debug(f"{log_prefix} Queue is empty.")
+                        self.current_song = None
+                    # LOCK RELEASED HERE
+                logger.debug(f"{log_prefix} Lock released after queue check.")
+
+            # --- Wait if Queue Empty ---
+            if not song_to_play:
+                logger.info(f"{log_prefix} Queue empty or VC invalid, pausing loop. Waiting for play_next_song event...")
+                await self.play_next_song.wait()
+                logger.info(f"{log_prefix} play_next_song event received while queue was empty. Continuing loop.")
+                continue # Re-check queue and VC state
+
+            # --- Play Song ---
+            logger.info(f"{log_prefix} Attempting to play: {song_to_play.title}")
+            source = None
+            play_attempted = False
+            try:
+                # Re-verify VC right before creating source and playing
+                if not self.voice_client or not self.voice_client.is_connected():
+                     logger.warning(f"{log_prefix} VC disconnected just before creating source for '{song_to_play.title}'.")
+                     # Put song back and signal loop to re-evaluate
+                     async with self._lock: self.queue.appendleft(song_to_play); self.current_song = None
+                     # Don't set event here, loop will cycle and exit or wait
+                     continue
+
+                if self.voice_client.is_playing():
+                     # This *shouldn't* be reached if the check at the top works, but as a safeguard
+                     logger.error(f"{log_prefix} CRITICAL RACE CONDITION: VC is playing just before calling play() for '{song_to_play.title}'. Check loop logic.")
+                     # Put song back and wait for the real 'after' callback
+                     async with self._lock: self.queue.appendleft(song_to_play); self.current_song = None
+                     await self.play_next_song.wait() # Wait for the signal from the *actual* playing song
+                     continue
+
+
+                logger.debug(f"{log_prefix} Creating FFmpegPCMAudio source for URL snippet: {song_to_play.source_url[:50]}...")
+                if not song_to_play.source_url or not isinstance(song_to_play.source_url, str):
+                     raise ValueError(f"Invalid source_url for song '{song_to_play.title}': {song_to_play.source_url}")
+
+                original_source = nextcord.FFmpegPCMAudio(
+                    song_to_play.source_url,
+                    before_options=FFMPEG_BEFORE_OPTIONS,
+                    options=FFMPEG_OPTIONS,
+                )
+                source = nextcord.PCMVolumeTransformer(original_source, volume=self.volume)
+                logger.debug(f"{log_prefix} Source created successfully.")
+
+                # --- THE PLAY CALL ---
+                self.voice_client.play(source, after=lambda e: self._handle_after_play(e))
+                play_attempted = True
+                # ---------------------
+
+                logger.info(f"{log_prefix} voice_client.play() called successfully for {song_to_play.title}")
+
+            except (nextcord.errors.ClientException, ValueError) as e:
+                # Error creating source or calling play (e.g., invalid URL, *maybe* already playing if race condition happened)
+                logger.error(f"{log_prefix} Client/Value Exception preparing or starting play for {song_to_play.title}: {e}", exc_info=True)
+                await self._notify_channel_error(f"Error preparing to play '{song_to_play.title}': {e}. Skipping.")
+                # DO NOT set play_next_song here. If something else was playing, let its 'after' callback handle it.
+                # If nothing was playing, the loop will cycle and wait correctly.
+                # The current song is technically skipped because we continue the loop without waiting.
+                self.current_song = None # Clear current song as it failed to start
+                # No wait needed here, loop continues to top
+            except Exception as e:
+                logger.error(f"{log_prefix} Unexpected error during playback preparation of {song_to_play.title}: {e}", exc_info=True)
+                await self._notify_channel_error(f"Unexpected error preparing '{song_to_play.title}'. Skipping.")
+                # DO NOT set play_next_song here.
+                self.current_song = None # Clear current song as it failed to start
+                # No wait needed here, loop continues to top
+            # finally:
+                # This block is less useful now, main logic is handled above
+
+            # --- Wait for song to finish ONLY if play was successfully initiated ---
+            if play_attempted:
+                 logger.debug(f"{log_prefix} Waiting for play_next_song event (song completion/skip)...")
+                 await self.play_next_song.wait()
+                 logger.debug(f"{log_prefix} play_next_song event received after playback attempt for '{song_to_play.title}'.")
+            else:
+                 # If play wasn't attempted (e.g., error before play call), don't wait here.
+                 # Loop continues to the top.
+                 logger.debug(f"{log_prefix} Play not attempted for '{song_to_play.title}', loop continues without waiting.")
 
             # --- Check Voice Client ---
             logger.debug(f"{log_prefix} Checking voice client state.")
@@ -683,13 +773,24 @@ class MusicCog(commands.Cog, name="Music"):
     @commands.command(name='stop', help="Stops playback completely and clears the queue.")
     @commands.guild_only()
     async def stop_command(self, ctx: commands.Context):
+        # Ensure guild exists before getting state
+        if not ctx.guild: return
         state = self.guild_states.get(ctx.guild.id)
 
-        if not state or not state.voice_client or not state.voice_client.is_connected():
-            return await ctx.send("I'm not connected or not playing anything.")
+        # Check state exists before accessing attributes
+        if not state:
+             return await ctx.send("I'm not active in this server.")
+        state.last_command_channel_id = ctx.channel.id
 
+        if not state.voice_client or not state.voice_client.is_connected():
+            return await ctx.send("I'm not connected or not playing anything.")
+        if not state.current_song and not state.queue:
+             return await ctx.send("Nothing to stop (queue is empty and nothing is playing).")
+
+        # --- CORRECTED LOGGING ---
         logger.info(f"[{ctx.guild.id}] Stop requested by {ctx.author.name}.")
-        await state.stop_playback()
+        # -------------------------
+        await state.stop_playback() # Clears queue and stops player
         await ctx.send("Playback stopped and queue cleared.")
         await ctx.message.add_reaction('⏹️')
 
@@ -726,59 +827,93 @@ class MusicCog(commands.Cog, name="Music"):
         state.voice_client.resume()
         logger.info(f"[{ctx.guild.id}] Playback resumed by {ctx.author.name}.")
         await ctx.message.add_reaction('▶️')
-
+###################
     # --- queue_command (Keep version from previous steps) ---
-    @commands.command(name='queue', aliases=['q', 'playlist'], help="Shows the current song queue.")
+    @commands.command(name='queue', aliases=['q', 'nowplaying', 'np'], help="Shows the current song queue.")
     @commands.guild_only()
     async def queue_command(self, ctx: commands.Context):
         state = self.guild_states.get(ctx.guild.id)
-
-        if not state:
+        if not state: # Check if state exists before accessing it
              return await ctx.send("I haven't played anything in this server yet.")
+        state.last_command_channel_id = ctx.channel.id
 
+        # Use lock for reading queue and current song to ensure consistency
         async with state._lock:
-            if not state.current_song and not state.queue:
-                return await ctx.send("The queue is empty and nothing is playing.")
+            current_song = state.current_song
+            queue_copy = list(state.queue) # Create copy inside lock
 
-            embed = nextcord.Embed(title="Music Queue", color=nextcord.Color.blurple())
-            current_display = "Nothing currently playing."
-            if state.current_song:
-                song = state.current_song
-                status = "▶️ Playing" if state.voice_client and state.voice_client.is_playing() else "⏸️ Paused"
-                current_display = f"{status}: **[{song.title}]({song.webpage_url})** `[{song.format_duration()}]` - Req by {song.requester.mention}"
-            embed.add_field(name="Now Playing", value=current_display, inline=False)
+        if not current_song and not queue_copy:
+            return await ctx.send("The queue is empty and nothing is playing.")
 
-            if state.queue:
-                queue_list = []
-                max_display = 10
-                total_queue_duration = 0
-                queue_copy = list(state.queue)
-                for i, song in enumerate(queue_copy[:max_display]):
-                     queue_list.append(f"`{i+1}.` [{song.title}]({song.webpage_url}) `[{song.format_duration()}]` - Req by {song.requester.display_name}")
-                     if song.duration:
-                         try: total_queue_duration += int(song.duration)
-                         except (ValueError, TypeError): pass # Ignore if duration invalid
+        embed = nextcord.Embed(title="Music Queue", color=nextcord.Color.blurple())
+        current_display = "Nothing currently playing."
+        total_queue_duration = 0 # Duration of songs *in the queue* only
 
-                if len(queue_copy) > max_display:
-                    queue_list.append(f"\n...and {len(queue_copy) - max_display} more.")
-                    for song in queue_copy[max_display:]:
-                         if song.duration:
-                             try: total_queue_duration += int(song.duration)
-                             except (ValueError, TypeError): pass
+        # Display Current Song
+        if current_song:
+            status_icon = "❓"
+            # Ensure voice_client exists and is connected before checking state
+            if state.voice_client and state.voice_client.is_connected():
+                 if state.voice_client.is_playing(): status_icon = "▶️ Playing"
+                 elif state.voice_client.is_paused(): status_icon = "⏸️ Paused"
+                 else: status_icon = "⏹️ Stopped/Idle"
+            # Make sure requester is not None before accessing mention
+            requester_mention = current_song.requester.mention if current_song.requester else "Unknown"
+            current_display = f"{status_icon}: **[{current_song.title}]({current_song.webpage_url})** `[{current_song.format_duration()}]` - Req by {requester_mention}"
+        embed.add_field(name="Now Playing", value=current_display, inline=False)
 
-                total_dur_str = Song(None,None,None,total_queue_duration,None).format_duration() if total_queue_duration > 0 else "N/A"
+        # Display Queue (with character limit)
+        if queue_copy:
+            queue_list_strings = []
+            current_length = 0
+            char_limit = 950 # Keep it safely below 1024
+            songs_shown = 0
+            max_songs_to_list = 20 # Limit number of entries as well
 
-                embed.add_field(
-                    name=f"Up Next ({len(queue_copy)} song{'s' if len(queue_copy) != 1 else ''}, Total: {total_dur_str})",
-                    value="\n".join(queue_list) or "No songs in queue.",
-                    inline=False
-                )
-            else:
-                 embed.add_field(name="Up Next", value="No songs in queue.", inline=False)
+            for i, song in enumerate(queue_copy):
+                # Calculate total duration for all songs in queue regardless of display
+                if song.duration:
+                    try: total_queue_duration += int(song.duration)
+                    except (ValueError, TypeError): pass
 
-            total_songs = len(state.queue) + (1 if state.current_song else 0)
-            embed.set_footer(text=f"Total songs: {total_songs} | Volume: {int(state.volume * 100)}%")
-            await ctx.send(embed=embed)
+                # Format the string for this song
+                requester_name = song.requester.display_name if song.requester else "Unknown"
+                song_line = f"`{i+1}.` [{song.title}]({song.webpage_url}) `[{song.format_duration()}]` - Req by {requester_name}\n"
+
+                # Check if adding this line exceeds the limit OR the max song count
+                if (current_length + len(song_line) > char_limit or songs_shown >= max_songs_to_list) and i > 0:
+                    remaining_songs = len(queue_copy) - i
+                    queue_list_strings.append(f"\n...and {remaining_songs} more song{'s' if remaining_songs != 1 else ''}.")
+                    break # Stop adding more song details
+
+                queue_list_strings.append(song_line)
+                current_length += len(song_line)
+                songs_shown += 1
+
+            total_dur_str = Song(None,None,None,total_queue_duration,None).format_duration() if total_queue_duration > 0 else "N/A"
+            queue_header = f"Up Next ({len(queue_copy)} song{'s' if len(queue_copy) != 1 else ''}, Total Duration: {total_dur_str})"
+
+            # Join the strings, handle potential empty list if first song was too long (unlikely)
+            queue_value = "".join(queue_list_strings).strip()
+            if not queue_value: # Fallback if something went wrong
+                 queue_value = "Queue is too long to display fully here."
+                 if len(queue_copy) > 0: # Add count if possible
+                     queue_value += f" ({len(queue_copy)} songs total)"
+
+
+            embed.add_field(
+                name=queue_header,
+                value=queue_value,
+                inline=False
+            )
+        else:
+             embed.add_field(name="Up Next", value="No songs in queue.", inline=False)
+
+        total_songs_in_system = len(queue_copy) + (1 if current_song else 0)
+        # Ensure state.volume exists before accessing
+        volume_percent = int(state.volume * 100) if hasattr(state, 'volume') else "N/A"
+        embed.set_footer(text=f"Total songs: {total_songs_in_system} | Volume: {volume_percent}%")
+        await ctx.send(embed=embed)
 
     # --- volume_command (Keep version from previous steps) ---
     @commands.command(name='volume', aliases=['vol'], help="Changes the player volume (0-100).")
