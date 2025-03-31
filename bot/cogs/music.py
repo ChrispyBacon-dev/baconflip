@@ -110,8 +110,8 @@ class GuildMusicState:
                 logger.info(f"{log_prefix} Now playing: {song_to_play.title} requested by {song_to_play.requester.name}")
                 source = None
                 try:
-                    logger.debug(f"{log_prefix} Creating FFmpegPCMAudio source for URL: {song_to_play.source_url}")
-                    original_source = await nextcord.FFmpegPCMAudio.from_probe(
+                    logger.debug(f"{log_prefix} Creating FFmpegOpusAudio source for URL: {song_to_play.source_url}")
+                    original_source = await nextcord.FFmpegOpusAudio.from_probe(
                         song_to_play.source_url,
                         before_options=FFMPEG_BEFORE_OPTIONS,
                         options=FFMPEG_OPTIONS,
