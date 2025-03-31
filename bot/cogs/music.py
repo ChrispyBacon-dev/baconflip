@@ -136,16 +136,26 @@ class MusicPlayerView(nextcord.ui.View):
             else: await interaction.response.send_message("Queue empty.", ephemeral=True)
         except Exception as e: logger.error(f"Queue button err (gid {self.guild_id}): {e}", exc_info=True); await interaction.response.send_message("Err display queue.", ephemeral=True)
 
+    # --- Corrected on_timeout ---
     async def on_timeout(self):
-        logger.debug(f"View timeout/stopped (gid {self.guild_id})")
+        logger.debug(f"View timed out/stopped (gid {self.guild_id})")
         for item in self.children:
             if isinstance(item, nextcord.ui.Button): item.disabled = True
         state = self._get_state()
+        # Check if the view that timed out is still the active one in the state
         if state and state.current_player_view is self and state.current_player_message_id and state.last_command_channel_id:
-            try: chan = self.music_cog.bot.get_channel(state.last_command_channel_id);
-            if chan and isinstance(chan, nextcord.TextChannel): msg = await chan.fetch_message(state.current_player_message_id);
-            if msg and msg.components: await msg.edit(view=self)
-            except (nextcord.NotFound, nextcord.Forbidden, AttributeError) as e: logger.warning(f"Failed edit on view timeout (gid {self.guild_id}): {e}")
+            try:
+                # --- Indentation Fixed Below ---
+                chan = self.music_cog.bot.get_channel(state.last_command_channel_id)
+                if chan and isinstance(chan, nextcord.TextChannel):
+                    msg = await chan.fetch_message(state.current_player_message_id)
+                    if msg and msg.components: # Check if components exist before editing
+                        logger.debug(f"Editing message {state.current_player_message_id} on timeout to show disabled view.")
+                        await msg.edit(view=self) # Edit with the current (disabled) view state
+                # --- End of Indentation Fix ---
+            except (nextcord.NotFound, nextcord.Forbidden, AttributeError) as e:
+                logger.warning(f"Failed edit on view timeout (gid {self.guild_id}): {e}")
+    # --- End of Corrected on_timeout ---
 
 # --- Guild Music State ---
 class GuildMusicState:
@@ -197,6 +207,7 @@ class GuildMusicState:
                 logger.warning(f"{logp} VC disconnected.") # Semicolon removed
                 async with self._lock: # async with on new line
                     if self.current_song:
+                        logger.warning(f"{logp} Putting back '{self.current_song.title}'") # Log song being put back
                         self.queue.appendleft(self.current_song)
                         self.current_song = None
                 if self.current_player_view:
@@ -549,29 +560,16 @@ class MusicCog(commands.Cog, name="Music"):
             else: await ctx.send(f"Internal error running `{ctx.command.name}`.")
         else: logger.error(f"{logp} Unhandled err '{ctx.command.qualified_name}': {type(error).__name__}: {error}", exc_info=error)
 
-
 # --- Setup Function ---
 def setup(bot: commands.Bot):
     OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # Adjust if needed
     try:
-        if not nextcord.opus.is_loaded():
-            logger.info(f"Opus not loaded. Trying path: {OPUS_PATH}")
-            nextcord.opus.load_opus(OPUS_PATH)
-        # Re-check after load attempt
-        if nextcord.opus.is_loaded():
-             logger.info("Opus loaded successfully.")
-        else:
-             logger.critical("Opus load attempt finished, but is_loaded() is still false.")
-        # Removed redundant `else:` block that was causing issues
-    except nextcord.opus.OpusNotLoaded:
-         logger.critical(f"CRITICAL: Opus library not found at path '{OPUS_PATH}' or failed to load.")
-    except Exception as e:
-         logger.critical(f"CRITICAL: Opus load failed: {e}", exc_info=True)
+        if not nextcord.opus.is_loaded(): logger.info(f"Opus trying path: {OPUS_PATH}"); nextcord.opus.load_opus(OPUS_PATH)
+        if nextcord.opus.is_loaded(): logger.info("Opus loaded.")
+        else: logger.critical("Opus load attempt failed.")
+    except nextcord.opus.OpusNotLoaded: logger.critical(f"CRITICAL: Opus lib not found at '{OPUS_PATH}' or failed load.")
+    except Exception as e: logger.critical(f"CRITICAL: Opus load failed: {e}", exc_info=True)
+    try: bot.add_cog(MusicCog(bot)); logger.info("MusicCog added.")
+    except Exception as e: logger.critical(f"CRITICAL: Failed add MusicCog: {e}", exc_info=True)
 
-    try:
-        bot.add_cog(MusicCog(bot))
-        logger.info("MusicCog added to bot successfully.")
-    except Exception as e:
-         logger.critical(f"CRITICAL: Failed to add MusicCog to bot: {e}", exc_info=True)
-
-# --- End of File -- 
+# --- End of File ---
