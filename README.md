@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Discord API](https://img.shields.io/badge/Discord%20API-Nextcord-brightgreen)](https://nextcord.dev/)
 [![LiteLLM](https://img.shields.io/badge/LLM-LiteLLM-brightgreen)](https://litellm.ai/)
-[![Python Version](https://img.shields.io/badge/python-%3E=3.8)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-%3E=3.9-blue)](https://www.python.org/downloads/)
 [![Docker Image Size (latest)](https://img.shields.io/docker/image-size/alplat/baconflip/latest?logoColor=blue)](https://hub.docker.com/r/alplat/baconflip)
 ![GitHub repo size](https://img.shields.io/github/repo-size/ChrispyBacon-dev/baconflip?logoColor=blue)
 [![Docker Pulls](https://img.shields.io/docker/pulls/alplat/baconflip?logoColor=blue)](https://hub.docker.com/r/alplat/baconflip)
