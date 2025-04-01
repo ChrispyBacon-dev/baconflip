@@ -37,6 +37,7 @@ BaconFlip isn't just another chat bot; it's a highly customizable framework buil
 *   Configurable system prompt for personality
 *   Admin-controlled channel muting (`!mute`/`!unmute`)
 *   Standard + LLM-generated welcome messages (`!testwelcome` included)
+*   **Musicplayer with embeded controls (youtube links) Commands:** (`!play` included)
 *   **Finance Commands:** `!stock`, `!crypto` (with small trend charts!)
 *   **Fun Commands:** `!roll`, `!coinflip`, `!choose`, `!8ball` (LLM)
 *   **Info Commands:** `!ping`, `!serverinfo`, `!userinfo`, `!avatar`
@@ -44,6 +45,9 @@ BaconFlip isn't just another chat bot; it's a highly customizable framework buil
 
 ### Example: Baconflip chat Greeting
 ![BaconFlip LLM chat example](images/chat_example.png)
+
+### Example: Baconflip Musicplayer
+![BaconFlip Musicplayer example](images/musicplayer_example.png)
 
 ### Example: Stock Quote with Trend
 
