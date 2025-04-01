@@ -2,6 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/ChrispyBacon-dev/baconflip)
 [![OS](https://img.shields.io/badge/os-linux%20%7C%20windows%20%7C%20macos-brightgreen)]()
+[![CPU Architectures](https://img.shields.io/badge/CPU-x86%20%7C%20x64%20%7C%20ARM%20%7C%20ARM64-blue)](https://en.wikipedia.org/wiki/Central_processing_unit)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Discord API](https://img.shields.io/badge/Discord%20API-Nextcord-brightgreen)](https://nextcord.dev/)
 [![LiteLLM](https://img.shields.io/badge/LLM-LiteLLM-blueviolet)](https://litellm.ai/)
