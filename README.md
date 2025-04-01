@@ -1,11 +1,16 @@
- # BaconFlip - Your Personality-Driven, LiteLLM-Powered Discord Bot
+# BaconFlip - Your Personality-Driven, LiteLLM-Powered Discord Bot
 
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docker Image Size (latest semver)](https://img.shields.io/docker/image-size/alplat/baconflip/latest)](https://hub.docker.com/r/alplat/baconflip)
+[![Python Version](https://img.shields.io/badge/python-%3E=3.8-blue)](https://www.python.org/downloads/)
+[![Discord API](https://img.shields.io/badge/Discord%20API-Nextcord-brightgreen)](https://nextcord.dev/)
+[![LiteLLM](https://img.shields.io/badge/LLM-LiteLLM-blueviolet)](https://litellm.ai/)
+[![Docker Image Size (latest)](https://img.shields.io/docker/image-size/alplat/baconflip/latest)](https://hub.docker.com/r/alplat/baconflip)
+[![Docker Pulls](https://img.shields.io/docker/pulls/alplat/baconflip)](https://hub.docker.com/r/alplat/baconflip)
 ![GitHub last commit](https://img.shields.io/github/last-commit/ChrispyBacon-dev/baconflip)
+[![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/ChrispyBacon-dev/baconflip?sort=semver)](https://github.com/ChrispyBacon-dev/baconflip/releases)
 ![GitHub commits since latest release (branch)](https://img.shields.io/github/commits-since/ChrispyBacon-dev/baconflip/latest/stable)
+[![GitHub issues](https://img.shields.io/github/issues/ChrispyBacon-dev/baconflip)](https://github.com/ChrispyBacon-dev/baconflip/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/ChrispyBacon-dev/BaconFlip?style=social)](https://github.com/ChrispyBacon-dev/BaconFlip)
-
 
 
 **Tired of generic Discord bots? Ready to unleash the full power of cutting-edge AI with your *own* unique twist?**

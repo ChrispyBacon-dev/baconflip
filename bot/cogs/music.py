@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     # Forward declare classes used in type hints before definition
     class GuildMusicState: pass
     class MusicCog: pass
-    class MusicPlayerView: pass
+    class MusicPlayerView: pass # Added for completeness
 
 # --- Suppress Noise/Info from yt-dlp ---
 yt_dlp.utils.bug_reports_message = lambda: ''
@@ -63,7 +63,6 @@ async def _send_dm_or_log(user: nextcord.Member, message: Optional[str] = None, 
     except Exception as e:
         logger.error(f"Unexpected error sending DM to {user.name} ({user.id}): {e}", exc_info=True)
 
-
 # --- Song Class ---
 class Song:
     """Represents a song to be played."""
@@ -93,8 +92,6 @@ class Song:
             return f"{mins:02d}:{secs:02d}"
 
 # --- Music Player View ---
-# (Keep the MusicPlayerView class exactly as it was in the previous 'working' version)
-# ... (MusicPlayerView class code - no changes needed here for DM feature) ...
 class MusicPlayerView(nextcord.ui.View):
     """Persistent view for music player controls."""
     def __init__(self, music_cog: 'MusicCog', guild_id: int, timeout: Optional[float] = None): # Default timeout is 180s, None is persistent
@@ -173,9 +170,6 @@ class MusicPlayerView(nextcord.ui.View):
 
         return True # Interaction is valid
 
-    # --- Button Handlers (pause_resume, skip, stop, queue) ---
-    # These mostly use interaction.followup.send(..., ephemeral=True), which is already user-specific
-    # No changes needed in the button handlers themselves for the DM feature.
     @nextcord.ui.button(label="Pause", emoji="⏸️", style=nextcord.ButtonStyle.secondary, custom_id="music_pause_resume")
     async def pause_resume_button(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
         state = self._get_state()
@@ -284,7 +278,6 @@ class MusicPlayerView(nextcord.ui.View):
             state.current_player_view = None
 # --- End of MusicPlayerView ---
 
-
 # --- Guild Music State ---
 class GuildMusicState:
     """Manages music playback state for a single guild."""
@@ -304,7 +297,6 @@ class GuildMusicState:
 
     def _create_now_playing_embed(self, song: Optional[Song]) -> Optional[nextcord.Embed]:
         """Creates the 'Now Playing' embed."""
-        # (Keep this function as is)
         if not song:
             return None
 
@@ -324,8 +316,6 @@ class GuildMusicState:
 
     async def _update_player_message(self, *, embed: Optional[nextcord.Embed] = None, view: Optional[nextcord.ui.View] = None, content: Optional[str] = None):
         """Edits the existing player message or sends a new one IN THE CHANNEL."""
-        # --- THIS FUNCTION REMAINS UNCHANGED ---
-        # It is responsible for the main persistent message in the channel.
         log_prefix = f"[Guild {self.guild_id}] PlayerMsg:"
         channel_id = self.last_command_channel_id
 
@@ -386,7 +376,6 @@ class GuildMusicState:
             logger.error(f"{log_prefix} Unexpected error updating player message: {e}", exc_info=True)
     # --- End _update_player_message ---
 
-
     async def _playback_loop(self):
         """The main loop that handles dequeuing songs and playing them."""
         await self.bot.wait_until_ready()
@@ -424,14 +413,12 @@ class GuildMusicState:
                 if self.current_player_view:
                     logger.debug(f"{log_prefix} Stopping player view due to disconnect.")
                     self.current_player_view.stop()
-                    # Try update message in channel
                     self.bot.loop.create_task(self._update_player_message(content="*Bot disconnected from voice.*", embed=None, view=None))
                     self.current_player_view = None
 
                 self.current_player_message_id = None
                 logger.info(f"{log_prefix} Exiting loop due to disconnect.")
                 return
-
 
             # --- Get Next Song ---
             if vc_ok:
@@ -445,8 +432,7 @@ class GuildMusicState:
                         if self.current_song:
                              logger.info(f"{log_prefix} Queue empty after '{self.current_song.title}' finished.")
                              finished_embed = self._create_now_playing_embed(self.current_song)
-                             if finished_embed:
-                                 finished_embed.title = "Finished Playing"
+                             if finished_embed: finished_embed.title = "Finished Playing"
 
                              disabled_view = self.current_player_view
                              if disabled_view:
@@ -454,15 +440,11 @@ class GuildMusicState:
                                  for item in disabled_view.children:
                                      if isinstance(item, nextcord.ui.Button): item.disabled = True
 
-                             # Update message in channel
                              self.bot.loop.create_task(self._update_player_message(content="*Queue finished.*", embed=finished_embed, view=disabled_view))
-
                              self.current_song = None
                              self.current_player_view = None
-
                         else:
                              logger.debug(f"{log_prefix} Queue remains empty.")
-
 
             # --- Wait or Play ---
             if not song_to_play:
@@ -478,16 +460,12 @@ class GuildMusicState:
             try:
                 if not self.voice_client or not self.voice_client.is_connected():
                     logger.warning(f"{log_prefix} VC disconnected before play could start. Re-queuing '{song_to_play.title}'.")
-                    async with self._lock:
-                        self.queue.appendleft(song_to_play)
-                        self.current_song = None
+                    async with self._lock: self.queue.appendleft(song_to_play); self.current_song = None
                     continue
 
                 if self.voice_client.is_playing() or self.voice_client.is_paused():
                     logger.error(f"{log_prefix} Race condition? VC became active unexpectedly. Re-queuing '{song_to_play.title}'.")
-                    async with self._lock:
-                        self.queue.appendleft(song_to_play)
-                        self.current_song = None
+                    async with self._lock: self.queue.appendleft(song_to_play); self.current_song = None
                     await self.play_next_song.wait()
                     continue
 
@@ -498,7 +476,6 @@ class GuildMusicState:
                 play_success = True
                 logger.info(f"{log_prefix} Called voice_client.play() for '{song_to_play.title}'.")
 
-                # --- Update Player Message and View in Channel ---
                 logger.debug(f"{log_prefix} Updating player message in channel for '{song_to_play.title}'.")
                 now_playing_embed = self._create_now_playing_embed(song_to_play)
 
@@ -511,18 +488,15 @@ class GuildMusicState:
                 try:
                     self.current_player_view = MusicPlayerView(music_cog, self.guild_id)
                     logger.debug(f"{log_prefix} New view created. Updating message in channel.")
-                    # --- Call to _update_player_message (posts/edits in channel) ---
                     await self._update_player_message(embed=now_playing_embed, view=self.current_player_view, content=None)
                     logger.debug(f"{log_prefix} _update_player_message call finished. Current msg ID: {self.current_player_message_id}")
                 except Exception as e_view:
                     logger.error(f"{log_prefix} Failed to create or update player view: {e_view}", exc_info=True)
                     self.current_player_view = None
-                    await self._update_player_message(embed=now_playing_embed, view=None, content=None) # Update channel message without view
-
+                    await self._update_player_message(embed=now_playing_embed, view=None, content=None)
 
             except (nextcord.errors.ClientException, ValueError, TypeError) as e:
                 logger.error(f"{log_prefix} Playback error (Client/Value/Type) for '{song_to_play.title}': {e}", exc_info=False)
-                # Use _notify_channel_error for background errors
                 await self._notify_channel_error(f"Error playing '{song_to_play.title}'. Skipping.")
                 async with self._lock: self.current_song = None
             except Exception as e:
@@ -539,17 +513,11 @@ class GuildMusicState:
                 logger.debug(f"{log_prefix} Playback setup failed, continuing loop shortly.")
                 await asyncio.sleep(0.1)
 
-
     def _handle_after_play(self, error: Optional[Exception]):
         """Callback executed after a song finishes playing or errors during playback."""
         log_prefix = f"[Guild {self.guild_id}] AfterPlayCallback:"
         if error:
             logger.error(f"{log_prefix} Playback error reported: {error!r}", exc_info=error)
-            # Schedule notification (goes to channel via _notify_channel_error)
-            # Could try DMing requester here if needed:
-            # user = self.current_song.requester if self.current_song else None
-            # asyncio.run_coroutine_threadsafe(_send_dm_or_log(user, f"Playback error occurred for '{self.current_song.title}': {error}. Skip."), self.bot.loop)
-            # Sticking to channel notification for now:
             asyncio.run_coroutine_threadsafe(self._notify_channel_error(f"Playback error occurred: {error}. Skipping to next."), self.bot.loop)
         else:
             logger.debug(f"{log_prefix} Song finished successfully.")
@@ -557,10 +525,8 @@ class GuildMusicState:
         logger.debug(f"{log_prefix} Setting play_next_song event.")
         self.bot.loop.call_soon_threadsafe(self.play_next_song.set)
 
-
     def start_playback_loop(self):
         """Starts the playback loop task if it's not already running."""
-        # (Keep this function as is)
         log_prefix = f"[Guild {self.guild_id}]"
         if self._playback_task is None or self._playback_task.done():
             logger.info(f"{log_prefix} Starting playback loop task.")
@@ -576,7 +542,6 @@ class GuildMusicState:
 
     def _handle_loop_completion(self, task: asyncio.Task):
         """Callback executed when the playback loop task finishes."""
-        # (Keep this function as is)
         guild_id = self.guild_id
         log_prefix = f"[Guild {guild_id}] LoopCompletion:"
         try:
@@ -585,10 +550,8 @@ class GuildMusicState:
             elif task.exception():
                 exc = task.exception()
                 logger.error(f"{log_prefix} Playback loop task failed with exception:", exc_info=exc)
-                # Notify channel about the loop error
                 error_message = f"Music playback loop encountered an error: {exc}. Please try playing again."
                 asyncio.run_coroutine_threadsafe(self._notify_channel_error(error_message), self.bot.loop)
-                # Schedule cleanup
                 self.bot.loop.create_task(self.cleanup())
             else:
                 logger.info(f"{log_prefix} Playback loop task finished gracefully.")
@@ -604,10 +567,8 @@ class GuildMusicState:
         else:
             logger.debug(f"{log_prefix} State or Cog no longer exists or task mismatch; task reference not cleared from this instance.")
 
-
     async def stop_playback(self):
         """Stops the current song, clears the queue, and resets state."""
-        # (Keep this function as is - it updates the message in the channel)
         log_prefix = f"[Guild {self.guild_id}] StopPlayback:"
         logger.info(f"{log_prefix} Initiating stop.")
 
@@ -645,20 +606,17 @@ class GuildMusicState:
 
             if message_id_to_clear and self.last_command_channel_id:
                 logger.debug(f"{log_prefix} Scheduling player message update to show stopped state.")
-                # Updates message in channel
                 self.bot.loop.create_task(self._update_player_message(content="*Playback stopped.*", embed=None, view=view_to_stop))
             else:
                  logger.debug(f"{log_prefix} No message ID or channel to update for stopped state.")
 
-
     async def cleanup(self):
         """Comprehensive cleanup: stops playback, cancels loop, disconnects VC, resets state."""
-        # (Keep this function as is)
         guild_id = self.guild_id
         log_prefix = f"[Guild {guild_id}] Cleanup:"
         logger.info(f"{log_prefix} Starting cleanup process.")
 
-        await self.stop_playback() # Updates channel message
+        await self.stop_playback()
 
         task = self._playback_task
         if task and not task.done():
@@ -691,10 +649,8 @@ class GuildMusicState:
 
         logger.info(f"{log_prefix} Cleanup finished.")
 
-
     async def _notify_channel_error(self, message: str):
         """Sends an error message embed to the last used command channel."""
-        # --- THIS FUNCTION REMAINS UNCHANGED --- Sends to channel.
         channel_id = self.last_command_channel_id
         guild_id = self.guild_id
         if not channel_id:
@@ -715,7 +671,6 @@ class GuildMusicState:
             logger.error(f"[Guild {guild_id}] Failed to send error notification: {e}", exc_info=True)
 # --- End GuildMusicState ---
 
-
 # --- Music Cog ---
 class MusicCog(commands.Cog, name="Music"):
     """Commands for playing music in voice channels."""
@@ -731,7 +686,6 @@ class MusicCog(commands.Cog, name="Music"):
 
     def get_guild_state(self, guild_id: int) -> GuildMusicState:
         """Gets or creates the GuildMusicState for a guild."""
-        # (Keep as is)
         if guild_id not in self.guild_states:
             logger.info(f"[Guild {guild_id}] Creating new GuildMusicState.")
             self.guild_states[guild_id] = GuildMusicState(self.bot, guild_id)
@@ -739,7 +693,6 @@ class MusicCog(commands.Cog, name="Music"):
 
     async def build_queue_embed(self, state: GuildMusicState) -> Optional[nextcord.Embed]:
          """Builds the queue information embed."""
-         # (Keep this function as is)
          log_prefix = f"[Guild {state.guild_id}] QueueEmbed:"
          logger.debug(f"{log_prefix} Building queue embed.")
 
@@ -823,7 +776,6 @@ class MusicCog(commands.Cog, name="Music"):
          return embed
 
     # --- Extraction Methods ---
-    # (_process_entry and _extract_info should be the versions that fixed stream extraction)
     async def _process_entry(self, entry_data: dict, requester: nextcord.Member) -> Optional[Song]:
         """Processes a single entry from yt-dlp result, potentially re-extracting and processing if needed."""
         bot_id = self.bot.user.id if self.bot.user else 'Bot'
@@ -852,8 +804,9 @@ class MusicCog(commands.Cog, name="Music"):
                 logger.debug(f"{log_prefix} Re-extraction successful for '{title}'.")
             except Exception as e:
                 logger.error(f"{log_prefix} Error during re-extraction for '{title}': {e}", exc_info=True)
-                return None
+                return None # Failed to process this entry
 
+        # Process the entry data
         processed_data = None
         try:
              logger.debug(f"{log_prefix} Running process_ie_result for '{title}'...")
@@ -866,6 +819,7 @@ class MusicCog(commands.Cog, name="Music"):
              logger.error(f"{log_prefix} Error during process_ie_result for '{title}': {process_err}", exc_info=True)
              return None
 
+        # Find Best Audio Stream URL (Now using processed_data)
         logger.debug(f"{log_prefix} Searching for stream URL in processed data for: '{title}'")
         stream_url = None
         entry_to_search = processed_data
@@ -982,12 +936,10 @@ class MusicCog(commands.Cog, name="Music"):
             return "err_extraction_unexpected", []
     # --- End Extraction Methods ---
 
-
     # --- Listener ---
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: nextcord.Member, before: nextcord.VoiceState, after: nextcord.VoiceState):
         """Handles voice state changes, like bot disconnects or users leaving/joining."""
-        # (Keep this listener as is)
         if not member.guild: return
         guild_id = member.guild.id
         state = self.guild_states.get(guild_id)
@@ -1028,7 +980,6 @@ class MusicCog(commands.Cog, name="Music"):
                      self.bot.loop.create_task(state._update_player_message(view=state.current_player_view))
     # --- End Listener ---
 
-
     # --- Commands ---
     @commands.command(name='play', aliases=['p'], help="Plays a song or adds it/playlist to the queue.")
     @commands.guild_only()
@@ -1045,8 +996,7 @@ class MusicCog(commands.Cog, name="Music"):
             if ctx.author.voice and ctx.author.voice.channel:
                 logger.info(f"{log_prefix} Bot not connected. Attempting to join {ctx.author.voice.channel.name}.")
                 try:
-                    # Use join_command directly (it now sends DMs for feedback)
-                    await self.join_command(ctx)
+                    await self.join_command(ctx) # Uses DMs for feedback
                     state = self.guild_states.get(ctx.guild.id)
                     if not state or not state.voice_client or not state.voice_client.is_connected():
                         logger.warning(f"{log_prefix} Failed to join voice channel after automatic attempt.")
@@ -1059,12 +1009,10 @@ class MusicCog(commands.Cog, name="Music"):
                      await _send_dm_or_log(ctx.author, "An error occurred while trying to join the voice channel.")
                      return
             else:
-                # DM the user they need to be in VC
                 await _send_dm_or_log(ctx.author, "You need to be in a voice channel for me to join.")
                 return
         # --- Ensure User is in the Same VC ---
         elif not ctx.author.voice or ctx.author.voice.channel != state.voice_client.channel:
-             # DM the user they need to be in same VC
              await _send_dm_or_log(ctx.author, f"You need to be in the same voice channel as me ({state.voice_client.channel.mention}).")
              return
 
@@ -1084,7 +1032,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         # --- Handle Extraction Errors ---
         if error_code:
-            error_map = { # Same error map as before
+            error_map = {
                 'nodata': "Could not find any data for your query.",
                 'playlist_empty_or_fail': f"Could not add any songs from the playlist '{playlist_title}'. They might be unavailable or private.",
                 'process_single_failed': "Failed to process the requested track. It might be unsupported or unavailable.",
@@ -1097,13 +1045,11 @@ class MusicCog(commands.Cog, name="Music"):
             }
             error_message = error_map.get(error_code.replace("err_", ""), "An unknown error occurred during track lookup.")
             logger.warning(f"{log_prefix} Extraction failed. Code: {error_code}")
-            # Send error via DM
             await _send_dm_or_log(ctx.author, error_message)
             return
 
         if not songs_to_add:
             logger.warning(f"{log_prefix} Extraction succeeded but found no playable songs for query: {query}")
-            # Send feedback via DM
             await _send_dm_or_log(ctx.author, f"Couldn't find any playable songs for '{query}'.")
             return
 
@@ -1120,7 +1066,7 @@ class MusicCog(commands.Cog, name="Music"):
         # --- Send Feedback ---
         if added_count > 0:
             try:
-                if not was_queue_empty: # Queue wasn't empty, send DM confirmation
+                if not was_queue_empty: # Send DM confirmation
                     feedback_embed = nextcord.Embed(color=nextcord.Color.blue())
                     first_song = songs_to_add[0]
                     if playlist_title and added_count > 1:
@@ -1136,14 +1082,11 @@ class MusicCog(commands.Cog, name="Music"):
                     else:
                          feedback_embed.title = "Songs Queued"
                          feedback_embed.description = f"Added **{added_count}** songs to the server queue."
-
                     requester_name = ctx.author.display_name
                     requester_icon = ctx.author.display_avatar.url if ctx.author.display_avatar else None
                     feedback_embed.set_footer(text=f"Requested by {requester_name}", icon_url=requester_icon)
-                    # --- Send feedback embed via DM ---
                     await _send_dm_or_log(ctx.author, embed=feedback_embed)
-                else:
-                    # If queue was empty, just react to the command message in channel
+                else: # React if queue was empty
                     await ctx.message.add_reaction('✅')
             except Exception as e:
                 logger.error(f"{log_prefix} Failed to send feedback DM/reaction: {e}", exc_info=True)
@@ -1152,9 +1095,7 @@ class MusicCog(commands.Cog, name="Music"):
         if added_count > 0:
             logger.debug(f"{log_prefix} Ensuring playback loop is running.")
             state.start_playback_loop()
-
         logger.debug(f"{log_prefix} Play command finished processing.")
-
 
     @commands.command(name='join', aliases=['connect', 'j'], help="Connects the bot to your current voice channel.")
     @commands.guild_only()
@@ -1163,59 +1104,46 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild: return
         state = self.get_guild_state(ctx.guild.id)
         state.last_command_channel_id = ctx.channel.id
-
         if not ctx.author.voice or not ctx.author.voice.channel:
-            # Send DM
             await _send_dm_or_log(ctx.author, "You need to be in a voice channel for me to join.")
             return
-
         target_channel = ctx.author.voice.channel
         log_prefix = f"[Guild {ctx.guild.id}] JoinCmd:"
-
         async with state._lock:
             current_vc = state.voice_client
             if current_vc and current_vc.is_connected():
                 if current_vc.channel == target_channel:
-                    # Send DM
                     await _send_dm_or_log(ctx.author, f"I'm already in {target_channel.mention}.")
                 else:
                     try:
                         await current_vc.move_to(target_channel)
-                        # Send DM
                         await _send_dm_or_log(ctx.author, f"Moved to {target_channel.mention}.")
                         logger.info(f"{log_prefix} Moved VC to {target_channel.name}")
                     except asyncio.TimeoutError:
                          logger.error(f"{log_prefix} Timeout moving VC to {target_channel.name}")
-                         # Send DM
                          await _send_dm_or_log(ctx.author, "Timed out trying to move channels.")
                     except Exception as e:
                         logger.error(f"{log_prefix} Error moving VC to {target_channel.name}: {e}", exc_info=True)
-                        # Send DM
                         await _send_dm_or_log(ctx.author, f"Couldn't move to your channel: {e}")
             else:
                 try:
                     logger.info(f"{log_prefix} Attempting to connect to {target_channel.name}")
                     state.voice_client = await target_channel.connect()
-                    # Send DM
                     await _send_dm_or_log(ctx.author, f"Connected to {target_channel.mention}.")
                     logger.info(f"{log_prefix} Successfully connected.")
                     state.start_playback_loop()
                 except asyncio.TimeoutError:
                     logger.error(f"{log_prefix} Timeout connecting to {target_channel.name}")
-                    # Send DM
                     await _send_dm_or_log(ctx.author, f"Timed out trying to connect to {target_channel.mention}.")
                     if ctx.guild.id in self.guild_states: del self.guild_states[ctx.guild.id]
                 except nextcord.errors.ClientException as e:
                      logger.error(f"{log_prefix} ClientException connecting to {target_channel.name}: {e}", exc_info=True)
-                     # Send DM
                      await _send_dm_or_log(ctx.author, f"Error connecting: {e}")
                      if ctx.guild.id in self.guild_states: del self.guild_states[ctx.guild.id]
                 except Exception as e:
                     logger.error(f"{log_prefix} Unexpected error connecting to {target_channel.name}: {e}", exc_info=True)
-                    # Send DM
                     await _send_dm_or_log(ctx.author, "An unexpected error occurred while trying to connect.")
                     if ctx.guild.id in self.guild_states: del self.guild_states[ctx.guild.id]
-
 
     @commands.command(name='leave', aliases=['disconnect', 'dc', 'stopbot'], help="Disconnects the bot from voice and clears the queue.")
     @commands.guild_only()
@@ -1224,32 +1152,22 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild: return
         state = self.guild_states.get(ctx.guild.id)
         log_prefix = f"[Guild {ctx.guild.id}] LeaveCmd:"
-
         if not state or not state.voice_client or not state.voice_client.is_connected():
-            # Send DM if trying to leave when not connected
             await _send_dm_or_log(ctx.author, "I'm not connected to a voice channel.")
             return
-
         logger.info(f"{log_prefix} Received leave command from {ctx.author.name}.")
-        await ctx.message.add_reaction('👋') # Keep reaction in channel
-
-        await state.cleanup() # Cleanup handles stopping etc.
-
+        await ctx.message.add_reaction('👋')
+        await state.cleanup()
         if ctx.guild.id in self.guild_states:
             del self.guild_states[ctx.guild.id]
             logger.info(f"{log_prefix} GuildMusicState removed after cleanup.")
-        # Maybe send a confirmation DM? Optional.
-        # await _send_dm_or_log(ctx.author, "Disconnected from the voice channel.")
-
 
     @commands.command(name='skip', aliases=['s', 'next'], help="Skips the current song.")
     @commands.guild_only()
     async def skip_command(self, ctx: commands.Context):
         """Skips the currently playing song."""
-        # Keep using reaction for low spam
         if not ctx.guild: return
         state = self.guild_states.get(ctx.guild.id)
-
         if not state or not state.voice_client or not state.voice_client.is_connected():
             await _send_dm_or_log(ctx.author, "I'm not connected or playing anything.")
             return
@@ -1257,39 +1175,30 @@ class MusicCog(commands.Cog, name="Music"):
         if not vc.is_playing() and not vc.is_paused():
             await _send_dm_or_log(ctx.author, "Nothing is currently playing to skip.")
             return
-
         logger.info(f"[Guild {ctx.guild.id}] Skip command received from {ctx.author.name}.")
         vc.stop()
         await ctx.message.add_reaction('⏭️')
-
 
     @commands.command(name='stop', help="Stops playback completely and clears the queue.")
     @commands.guild_only()
     async def stop_command(self, ctx: commands.Context):
         """Stops the player and clears the song queue."""
-        # Keep using reaction for low spam
         if not ctx.guild: return
         state = self.guild_states.get(ctx.guild.id)
-
         if not state or not state.voice_client or not state.voice_client.is_connected():
             await _send_dm_or_log(ctx.author, "I'm not connected or playing anything.")
             return
         if not state.current_song and not state.queue:
             await _send_dm_or_log(ctx.author, "Nothing to stop - the player is idle and the queue is empty.")
             return
-
         logger.info(f"[Guild {ctx.guild.id}] Stop command received from {ctx.author.name}.")
-        await state.stop_playback() # Handles stopping VC, clearing queue, updating channel message
+        await state.stop_playback()
         await ctx.message.add_reaction('⏹️')
-        # Confirmation DM is optional, as main player message updates
-        # await _send_dm_or_log(ctx.author, "Playback stopped and queue cleared.")
-
 
     @commands.command(name='pause', help="Pauses the current song.")
     @commands.guild_only()
     async def pause_command(self, ctx: commands.Context):
         """Pauses the currently playing song."""
-        # Keep using reaction for low spam
         if not ctx.guild: return
         state = self.guild_states.get(ctx.guild.id)
         if not state or not state.voice_client or not state.voice_client.is_connected():
@@ -1302,20 +1211,17 @@ class MusicCog(commands.Cog, name="Music"):
         if not vc.is_playing():
             await _send_dm_or_log(ctx.author, "Nothing is currently playing to pause.")
             return
-
         vc.pause()
         logger.info(f"[Guild {ctx.guild.id}] Pause command received from {ctx.author.name}.")
         await ctx.message.add_reaction('⏸️')
-        if state.current_player_view: # Update buttons in channel message
+        if state.current_player_view:
             state.current_player_view._update_buttons()
             await state._update_player_message(view=state.current_player_view)
-
 
     @commands.command(name='resume', aliases=['unpause'], help="Resumes the paused song.")
     @commands.guild_only()
     async def resume_command(self, ctx: commands.Context):
         """Resumes playback if it was paused."""
-        # Keep using reaction for low spam
         if not ctx.guild: return
         state = self.guild_states.get(ctx.guild.id)
         if not state or not state.voice_client or not state.voice_client.is_connected():
@@ -1328,33 +1234,28 @@ class MusicCog(commands.Cog, name="Music"):
         if not vc.is_paused():
             await _send_dm_or_log(ctx.author, "Nothing is currently paused.")
             return
-
         vc.resume()
         logger.info(f"[Guild {ctx.guild.id}] Resume command received from {ctx.author.name}.")
         await ctx.message.add_reaction('▶️')
-        if state.current_player_view: # Update buttons in channel message
+        if state.current_player_view:
             state.current_player_view._update_buttons()
             await state._update_player_message(view=state.current_player_view)
-
 
     @commands.command(name='queue', aliases=['q', 'nowplaying', 'np'], help="Shows the current song queue.")
     @commands.guild_only()
     async def queue_command(self, ctx: commands.Context):
          """Displays the current queue and now playing information."""
-         # Keep sending queue to channel
          if not ctx.guild: return
          state = self.guild_states.get(ctx.guild.id)
          if not state:
-             await ctx.send("The music player is not active in this server.") # Keep in channel
+             await ctx.send("The music player is not active in this server.")
              return
-
          state.last_command_channel_id = ctx.channel.id
          embed = await self.build_queue_embed(state)
          if embed:
-             await ctx.send(embed=embed) # Keep in channel
+             await ctx.send(embed=embed)
          else:
-             await ctx.send("The queue is empty and nothing is currently playing.") # Keep in channel
-
+             await ctx.send("The queue is empty and nothing is currently playing.")
 
     @commands.command(name='volume', aliases=['vol'], help="Changes the player volume (0-100).")
     @commands.guild_only()
@@ -1363,24 +1264,19 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild: return
         state = self.guild_states.get(ctx.guild.id)
         if not state or not state.voice_client or not state.voice_client.is_connected():
-            await _send_dm_or_log(ctx.author, "I'm not connected to voice.") # Send DM
+            await _send_dm_or_log(ctx.author, "I'm not connected to voice.")
             return
         if not 0 <= volume <= 100:
-            await _send_dm_or_log(ctx.author, "Please provide a volume level between 0 and 100.") # Send DM
+            await _send_dm_or_log(ctx.author, "Please provide a volume level between 0 and 100.")
             return
-
         new_volume_float = volume / 100.0
         state.volume = new_volume_float
-
         if state.voice_client.source and isinstance(state.voice_client.source, nextcord.PCMVolumeTransformer):
             state.voice_client.source.volume = new_volume_float
-            # Send DM confirmation
             await _send_dm_or_log(ctx.author, f"Volume set to **{volume}%**.")
         else:
-             # Send DM confirmation
              await _send_dm_or_log(ctx.author, f"Volume set to **{volume}%**. It will apply to the next song.")
         logger.info(f"[Guild {ctx.guild.id}] Volume set to {volume}% by {ctx.author.name}.")
-
 
     # --- Error Handler ---
     async def cog_command_error(self, ctx: commands.Context, error: commands.CommandError):
@@ -1390,9 +1286,9 @@ class MusicCog(commands.Cog, name="Music"):
         if state and isinstance(ctx.channel, nextcord.abc.GuildChannel):
             state.last_command_channel_id = ctx.channel.id
 
-        if isinstance(error, commands.CommandNotFound): return # Ignore
+        if isinstance(error, commands.CommandNotFound): return
 
-        error_message = None # Prepare message for DM
+        error_message = None
 
         if isinstance(error, commands.CheckFailure):
             logger.warning(f"{log_prefix} Check failed for command '{ctx.command.qualified_name if ctx.command else 'N/A'}': {error}")
@@ -1408,9 +1304,8 @@ class MusicCog(commands.Cog, name="Music"):
             cmd_name = ctx.command.qualified_name if ctx.command else 'unknown command'
             if isinstance(original_error, nextcord.HTTPException) and original_error.code == 50035 and 'embeds.0.fields' in str(original_error.text).lower():
                 logger.warning(f"{log_prefix} Embed length error likely from queue display.")
-                # Queue command sends to channel anyway, so maybe send this error there too? Or DM?
-                await ctx.send("The queue is too long to display fully!") # Keep this specific one in channel?
-                return # Don't proceed to DM for this specific case
+                await ctx.send("The queue is too long to display fully!")
+                return
             elif isinstance(original_error, nextcord.errors.ClientException):
                  logger.error(f"{log_prefix} Voice ClientException during '{cmd_name}': {original_error}", exc_info=False)
                  error_message = f"A voice-related error occurred: {original_error}"
@@ -1422,48 +1317,37 @@ class MusicCog(commands.Cog, name="Music"):
             logger.error(f"{log_prefix} Unhandled error type '{type(error).__name__}' for command '{cmd_name}': {error}", exc_info=error)
             error_message = f"An unexpected error occurred: {type(error).__name__}"
 
-        # --- Send the determined error message via DM ---
-        if error_message and ctx.author: # Check author exists
+        if error_message and ctx.author:
             await _send_dm_or_log(ctx.author, message=error_message)
         elif error_message:
              logger.warning(f"{log_prefix} Could not DM error message as ctx.author was not available.")
 # --- End Error Handler ---
 
-
-# --- Setup Function ---
+# --- setup function (Keep the manual opus load version) ---
 def setup(bot: commands.Bot):
     """Adds the MusicCog to the bot."""
-    # (Using the corrected manual Opus load from previous step)
     OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # Confirmed path
 
     try:
         if not nextcord.opus.is_loaded():
-            logger.info(f"Opus not loaded. Attempting to load manually from: {OPUS_PATH}")
-            try:
-                if nextcord.opus.load_opus(OPUS_PATH):
-                     logger.info("Opus library loaded successfully from manual path.")
-                else:
-                     logger.critical(f"CRITICAL: nextcord.opus.load_opus({OPUS_PATH}) returned False. Voice will not work.")
-                     raise commands.ExtensionError(f"Opus load returned False for path: {OPUS_PATH}")
-            except nextcord.opus.OpusNotLoaded:
-                 logger.critical(f"CRITICAL: Opus library not found or failed to load at specified path: {OPUS_PATH}. Voice will not work.")
-                 raise commands.ExtensionError(f"Opus library not found or failed to load at: {OPUS_PATH}")
-            except Exception as e_opus:
-                 logger.critical(f"CRITICAL: Unexpected error loading Opus from {OPUS_PATH}: {e_opus}", exc_info=True)
-                 raise commands.ExtensionError(f"Unexpected error loading Opus from {OPUS_PATH}: {e_opus}") from e_opus
+            logger.info(f"Opus not auto-loaded. Attempting manual load from: {OPUS_PATH}")
+            nextcord.opus.load_opus(OPUS_PATH)
+            if nextcord.opus.is_loaded():
+                 logger.info("Opus manually loaded successfully.")
+            else:
+                 logger.critical("Manual Opus load attempt finished, but is_loaded() is still false.")
         else:
-            logger.info("Opus library already loaded.")
-    except Exception as e:
-        logger.critical(f"CRITICAL: An unexpected error occurred during Opus check/load setup: {e}", exc_info=True)
-        if isinstance(e, commands.ExtensionError): raise e
-        else: raise commands.ExtensionError(f"Opus check/load setup failed: {e}") from e
+            logger.info("Opus library was already loaded automatically.")
 
-    try:
-        bot.add_cog(MusicCog(bot))
-        logger.info("MusicCog added successfully.")
+    except nextcord.opus.OpusNotLoaded as e:
+        logger.critical(f"CRITICAL: Manual Opus load failed using path '{OPUS_PATH}'. Error: {e}. "
+                        "Ensure the path is correct and the library file is valid and has correct permissions inside the container.")
     except Exception as e:
-        logger.critical(f"CRITICAL: Failed to add MusicCog to the bot: {e}", exc_info=True)
-        raise commands.ExtensionFailed(name="bot.cogs.music", original=e) from e
-# --- End Setup Function ---
+         logger.critical(f"CRITICAL: An unexpected error occurred during manual Opus load attempt: {e}", exc_info=True)
+
+    bot.add_cog(MusicCog(bot))
+    logger.info("MusicCog added to bot.")
+
+# --- Ensure no other code follows this function in the file ---
 
 # --- End of File ---
