@@ -6,12 +6,12 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Discord API](https://img.shields.io/badge/Discord%20API-Nextcord-brightgreen)](https://nextcord.dev/)
 [![LiteLLM](https://img.shields.io/badge/LLM-LiteLLM-brightgreen)](https://litellm.ai/)
-[![Python Version](https://img.shields.io/badge/python-%3E=3.8-blue)](https://www.python.org/downloads/)
-[![Docker Image Size (latest)](https://img.shields.io/docker/image-size/alplat/baconflip/latest-blue)](https://hub.docker.com/r/alplat/baconflip)
-![GitHub repo size](https://img.shields.io/github/repo-size/ChrispyBacon-dev/baconflip-blue)
-[![Docker Pulls](https://img.shields.io/docker/pulls/alplat/baconflip-blue)](https://hub.docker.com/r/alplat/baconflip)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/t/ChrispyBacon-dev/baconflip-blue)
-![GitHub last commit](https://img.shields.io/github/last-commit/ChrispyBacon-dev/baconflip-blue)
+[![Python Version](https://img.shields.io/badge/python-%3E=3.8?logoColor=blue)](https://www.python.org/downloads/)
+[![Docker Image Size (latest)](https://img.shields.io/docker/image-size/alplat/baconflip/latest?logoColor=blue)](https://hub.docker.com/r/alplat/baconflip)
+![GitHub repo size](https://img.shields.io/github/repo-size/ChrispyBacon-dev/baconflip?logoColor=blue)
+[![Docker Pulls](https://img.shields.io/docker/pulls/alplat/baconflip?logoColor=blue)](https://hub.docker.com/r/alplat/baconflip)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/t/ChrispyBacon-dev/baconflip?logoColor=blue)
+![GitHub last commit](https://img.shields.io/github/last-commit/ChrispyBacon-dev/baconflip?logoColor=blue)
 [![GitHub issues](https://img.shields.io/github/issues/ChrispyBacon-dev/baconflip)](https://github.com/ChrispyBacon-dev/baconflip/issues)
 
 
