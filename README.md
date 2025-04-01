@@ -8,7 +8,8 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/alplat/baconflip)](https://hub.docker.com/r/alplat/baconflip)
 ![GitHub last commit](https://img.shields.io/github/last-commit/ChrispyBacon-dev/baconflip)
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/ChrispyBacon-dev/baconflip?sort=semver)](https://github.com/ChrispyBacon-dev/baconflip/releases)
-![GitHub commits since latest release (branch)](https://img.shields.io/github/commits-since/ChrispyBacon-dev/baconflip/latest/stable)
+![GitHub commits since latest release (branch)](https://img.shields.io/github/commits-since/ChrispyBacon-dev/baconflip/latest/stable?cache=refresh)
+![GitHub repo size](https://img.shields.io/github/repo-size/ChrispyBacon-dev/baconflip)
 [![GitHub issues](https://img.shields.io/github/issues/ChrispyBacon-dev/baconflip)](https://github.com/ChrispyBacon-dev/baconflip/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/ChrispyBacon-dev/BaconFlip?style=social)](https://github.com/ChrispyBacon-dev/BaconFlip)
 
