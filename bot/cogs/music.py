@@ -902,8 +902,12 @@ class MusicCog(commands.Cog, name="Music"):
                 logger.error(f"{log_prefix} Error during re-extraction for '{title}': {e}", exc_info=True)
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
                 return None
 
+=======
+                return None # Failed to process this entry
+>>>>>>> parent of 6769c4d (updates)
 =======
                 return None # Failed to process this entry
 >>>>>>> parent of 6769c4d (updates)
@@ -922,6 +926,7 @@ class MusicCog(commands.Cog, name="Music"):
              # Let's fail for now, as processed data is usually needed.
              return None
 <<<<<<< HEAD
+<<<<<<< HEAD
 
         logger.debug(f"{log_prefix} Searching for stream URL in processed data for: '{title}'")
 =======
@@ -936,6 +941,12 @@ class MusicCog(commands.Cog, name="Music"):
 >>>>>>> parent of 6769c4d (updates)
         stream_url = None
 
+=======
+        # --- Find Best Audio Stream URL ---
+        logger.debug(f"{log_prefix} Processing entry: '{title}'")
+        stream_url = None
+
+>>>>>>> parent of 6769c4d (updates)
         # Priority 1: Use 'url' directly if it's present and seems like a direct audio stream
         # (Check for http/https protocol and ensure it's not 'none' codec if info available)
         if 'url' in entry_data and entry_data.get('protocol') in ('http', 'https') and entry_data.get('acodec') != 'none':
@@ -1620,6 +1631,7 @@ def setup(bot: commands.Bot):
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     """Adds the MusicCog to the bot."""
     # (Using the corrected manual Opus load from previous step)
     OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # Confirmed path
@@ -1660,6 +1672,10 @@ def setup(bot: commands.Bot):
     OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # Adjust if needed
     try:
 >>>>>>> parent of 6769c4d (updates)
+=======
+    OPUS_PATH = '/usr/lib/x86_64-linux-gnu/libopus.so.0' # Adjust if needed
+    try:
+>>>>>>> parent of 6769c4d (updates)
         if not nextcord.opus.is_loaded(): logger.info(f"Opus trying path: {OPUS_PATH}"); nextcord.opus.load_opus(OPUS_PATH)
         if nextcord.opus.is_loaded(): logger.info("Opus loaded.")
         else: logger.critical("Opus load attempt failed.")
@@ -1667,6 +1683,7 @@ def setup(bot: commands.Bot):
     except Exception as e: logger.critical(f"CRITICAL: Opus load failed: {e}", exc_info=True)
     try: bot.add_cog(MusicCog(bot)); logger.info("MusicCog added.")
     except Exception as e: logger.critical(f"CRITICAL: Failed add MusicCog: {e}", exc_info=True)
+<<<<<<< HEAD
 <<<<<<< HEAD
 >>>>>>> 0e2c011 (fix)
 =======
@@ -1723,6 +1740,8 @@ def setup(bot: commands.Bot):
         # This failure is critical, maybe raise it so bot owner knows
         raise commands.ExtensionFailed(name="bot.cogs.music", original=e) from e
 >>>>>>> parent of 0e2c011 (fix)
+=======
+>>>>>>> parent of 6769c4d (updates)
 =======
 >>>>>>> parent of 6769c4d (updates)
 
