@@ -13,7 +13,7 @@
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/t/ChrispyBacon-dev/baconflip)
 ![GitHub last commit](https://img.shields.io/github/last-commit/ChrispyBacon-dev/baconflip)
 [![GitHub issues](https://img.shields.io/github/issues/ChrispyBacon-dev/baconflip)](https://github.com/ChrispyBacon-dev/baconflip/issues)
-[![GitHub Stars](https://img.shields.io/github/stars/ChrispyBacon-dev/BaconFlip?style=social)](https://github.com/ChrispyBacon-dev/BaconFlip)
+
 
 
 **Tired of generic Discord bots? Ready to unleash the full power of cutting-edge AI with your *own* unique twist?**
