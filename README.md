@@ -1,5 +1,7 @@
 # BaconFlip - Your Personality-Driven, LiteLLM-Powered Discord Bot
 
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/ChrispyBacon-dev/baconflip)
+[![OS](https://img.shields.io/badge/os-linux%20%7C%20windows%20%7C%20macos-brightgreen)]()
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-%3E=3.8-blue)](https://www.python.org/downloads/)
 [![Discord API](https://img.shields.io/badge/Discord%20API-Nextcord-brightgreen)](https://nextcord.dev/)
@@ -7,8 +9,8 @@
 [![Docker Image Size (latest)](https://img.shields.io/docker/image-size/alplat/baconflip/latest)](https://hub.docker.com/r/alplat/baconflip)
 ![GitHub repo size](https://img.shields.io/github/repo-size/ChrispyBacon-dev/baconflip)
 [![Docker Pulls](https://img.shields.io/docker/pulls/alplat/baconflip)](https://hub.docker.com/r/alplat/baconflip)
-![GitHub last commit](https://img.shields.io/github/last-commit/ChrispyBacon-dev/baconflip)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/t/ChrispyBacon-dev/baconflip)
+![GitHub last commit](https://img.shields.io/github/last-commit/ChrispyBacon-dev/baconflip)
 [![GitHub issues](https://img.shields.io/github/issues/ChrispyBacon-dev/baconflip)](https://github.com/ChrispyBacon-dev/baconflip/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/ChrispyBacon-dev/BaconFlip?style=social)](https://github.com/ChrispyBacon-dev/BaconFlip)
 
