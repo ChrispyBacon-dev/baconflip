@@ -26,21 +26,23 @@ FFMPEG_BEFORE_OPTIONS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max
 FFMPEG_OPTIONS = '-vn'
 
 # --- YTDL Options ---
+# --- MODIFIED START ---
 YDL_OPTS = {
     'format': 'bestaudio/best',
     'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
     'restrictfilenames': True,
-    'noplaylist': False,          # Allow playlists by default, process items individually later
+    'noplaylist': False,          # Allow playlists
     'nocheckcertificate': True,
-    'ignoreerrors': True,         # Skip unavailable videos in playlists
+    'ignoreerrors': True,         # Skip unavailable videos in playlists (KEEP THIS)
     'logtostderr': False,
     'quiet': True,
     'no_warnings': True,
     'default_search': 'auto',
-    'source_address': '0.0.0.0',  # Bind to all interfaces to avoid potential issues
-    'extract_flat': 'in_playlist', # Faster playlist extraction, get individual URLs later if needed
-    'force_generic_extractor': True, # Sometimes helps with problematic URLs
+    'source_address': '0.0.0.0',  # Bind to all interfaces
+    # 'extract_flat': 'in_playlist', # REMOVED - Caused issues with playlist detection on watch?v=...&list=... URLs
+    # 'force_generic_extractor': True, # REMOVED - Might interfere with YouTube-specific parsing
 }
+# --- MODIFIED END ---
 
 # Configure Logger
 logger = logging.getLogger(__name__)
@@ -679,6 +681,7 @@ class MusicCog(commands.Cog, name="Music"):
         self.bot: commands.Bot = bot
         self.guild_states: dict[int, GuildMusicState] = {}
         try:
+            # Use the globally defined YDL_OPTS when initializing
             self.ydl = yt_dlp.YoutubeDL(YDL_OPTS)
         except Exception as e:
              logger.critical(f"Failed to initialize YoutubeDL: {e}", exc_info=True)
@@ -776,6 +779,8 @@ class MusicCog(commands.Cog, name="Music"):
          return embed
 
     # --- Extraction Methods ---
+
+    # --- MODIFIED START ---
     async def _process_entry(self, entry_data: dict, requester: nextcord.Member) -> Optional[Song]:
         """Processes a single entry from yt-dlp result, potentially re-extracting and processing if needed."""
         bot_id = self.bot.user.id if self.bot.user else 'Bot'
@@ -784,99 +789,179 @@ class MusicCog(commands.Cog, name="Music"):
         if not entry_data:
             logger.warning(f"{log_prefix} Received empty entry data.")
             return None
-        title = entry_data.get('title', entry_data.get('id', 'N/A'))
 
-        if entry_data.get('_type') == 'url' and 'url' in entry_data and 'formats' not in entry_data and 'entries' not in entry_data:
-            logger.debug(f"{log_prefix} Flat entry detected for '{title}'. Re-extracting with processing.")
+        # Prioritize getting an ID or URL for logging/re-extraction purposes
+        entry_id = entry_data.get('id')
+        entry_url = entry_data.get('url')
+        entry_title = entry_data.get('title', entry_id or entry_url or 'Unknown Entry') # Best effort title
+
+        # --- Re-extraction Check ---
+        # Check if we need to re-extract to get full formats/details
+        # This is common if the initial extract was shallow (e.g., from a playlist)
+        needs_reextraction = (
+            entry_data.get('_type') == 'url' and
+            entry_url and
+            'formats' not in entry_data and
+            'entries' not in entry_data # Ensure it's not a nested playlist itself
+        )
+
+        if needs_reextraction:
+            logger.debug(f"{log_prefix} Flat entry detected for '{entry_title}'. Re-extracting URL: {entry_url}")
             try:
                 loop = asyncio.get_event_loop()
+                # Use specific options for single video extraction if needed
+                # Make a copy to avoid modifying the global YDL_OPTS potentially used elsewhere
                 ydl_opts_single = YDL_OPTS.copy()
-                ydl_opts_single['noplaylist'] = True
-                ydl_opts_single['extract_flat'] = False
-                ydl_single = yt_dlp.YoutubeDL(ydl_opts_single)
-                partial_extract = functools.partial(ydl_single.extract_info, entry_data['url'], download=False)
-                full_entry_data = await loop.run_in_executor(None, partial_extract)
+                ydl_opts_single['noplaylist'] = True # Ensure we only get this one video
+                # Remove extract_flat if it was in the global opts (it shouldn't be now, but safe)
+                ydl_opts_single.pop('extract_flat', None)
+                # Keep other relevant opts like format preference
+
+                # Create a temporary YDL instance for this specific extraction
+                # Avoids potential threading issues with the main instance if used heavily
+                # Use 'with' to ensure cleanup
+                with yt_dlp.YoutubeDL(ydl_opts_single) as ydl_single:
+                     # process=True is default for extract_info, should get formats
+                     partial_extract = functools.partial(ydl_single.extract_info, entry_url, download=False)
+                     full_entry_data = await loop.run_in_executor(None, partial_extract)
+
                 if not full_entry_data:
-                    logger.warning(f"{log_prefix} Re-extraction failed for URL: {entry_data['url']}")
+                    logger.warning(f"{log_prefix} Re-extraction returned no data for URL: {entry_url}")
                     return None
-                entry_data = full_entry_data
-                title = entry_data.get('title', entry_data.get('id', 'N/A'))
-                logger.debug(f"{log_prefix} Re-extraction successful for '{title}'.")
+
+                entry_data = full_entry_data # Replace original shallow data with full data
+                entry_title = entry_data.get('title', entry_id or 'Unknown Title After Re-extract') # Update title
+                logger.debug(f"{log_prefix} Re-extraction successful for '{entry_title}'.")
+
+            except yt_dlp.utils.DownloadError as e:
+                 logger.warning(f"{log_prefix} DownloadError during re-extraction for '{entry_title}': {e}")
+                 return None # Skip this entry if re-extraction fails
             except Exception as e:
-                logger.error(f"{log_prefix} Error during re-extraction for '{title}': {e}", exc_info=True)
+                logger.error(f"{log_prefix} Unexpected error during re-extraction for '{entry_title}': {e}", exc_info=True)
                 return None # Failed to process this entry
 
-        # Process the entry data
-        processed_data = None
-        try:
-             logger.debug(f"{log_prefix} Running process_ie_result for '{title}'...")
-             processed_data = self.ydl.process_ie_result(entry_data, download=False)
-             if not processed_data:
-                  logger.warning(f"{log_prefix} process_ie_result returned None for '{title}'.")
-                  return None
-             logger.debug(f"{log_prefix} process_ie_result completed.")
-        except Exception as process_err:
-             logger.error(f"{log_prefix} Error during process_ie_result for '{title}': {process_err}", exc_info=True)
-             return None
+        # --- Process Entry Data (Whether original or re-extracted) ---
+        # Note: yt-dlp's extract_info (with process=True, the default, or when re-extracting)
+        # often does the necessary processing. We directly look for the URL in the
+        # potentially re-extracted entry_data.
 
-        # Find Best Audio Stream URL (Now using processed_data)
-        logger.debug(f"{log_prefix} Searching for stream URL in processed data for: '{title}'")
+        processed_data = entry_data # Use the (potentially updated) entry_data
+
+        logger.debug(f"{log_prefix} Searching for stream URL in data for: '{entry_title}'")
         stream_url = None
-        entry_to_search = processed_data
 
-        if 'url' in entry_to_search and entry_to_search.get('protocol') in ('http', 'https') and entry_to_search.get('acodec') != 'none':
-            stream_url = entry_to_search['url']
-            logger.debug(f"{log_prefix} Using pre-selected stream URL from processed data.")
-        elif 'formats' in entry_to_search:
-            formats = entry_to_search.get('formats', [])
+        # Priority 1: Check if a direct stream URL is already selected/present
+        # This can happen if 'format' selection worked perfectly during extract_info
+        if 'url' in processed_data and processed_data.get('protocol') in ('http', 'https') and processed_data.get('acodec') != 'none':
+            stream_url = processed_data['url']
+            logger.debug(f"{log_prefix} Using pre-selected stream URL from data.")
+
+        # Priority 2: Search through available formats if no direct URL found
+        elif 'formats' in processed_data:
+            formats = processed_data.get('formats', [])
             best_format = None
-            audio_preference = ['opus', 'aac', 'vorbis', 'mp4a', 'mp3']
+            # Your format selection logic seems reasonable, let's keep it
+            audio_preference = ['opus', 'aac', 'vorbis', 'mp4a', 'mp3'] # Common good quality audio codecs
             for codec in audio_preference:
                 for f in formats:
-                    if (f.get('url') and f.get('protocol') in ('https', 'http') and f.get('acodec') == codec and f.get('vcodec') == 'none'):
-                        best_format = f; logger.debug(f"{log_prefix} Found preferred audio-only format: {codec} (ID: {f.get('format_id', 'N/A')})"); break
+                    # Prefer audio-only formats with HTTPS/HTTP URLs
+                    if (f.get('url') and
+                        f.get('protocol') in ('https', 'http') and
+                        f.get('acodec') == codec and
+                        f.get('vcodec') == 'none'): # Explicitly check for audio-only
+                        best_format = f
+                        logger.debug(f"{log_prefix} Found preferred audio-only format: {codec} (ID: {f.get('format_id', 'N/A')})")
+                        break
                 if best_format: break
+
+            # Fallback 1: Look for formats explicitly marked as 'bestaudio'
             if not best_format:
                 for f in formats:
-                    format_id = f.get('format_id', '').lower(); format_note = f.get('format_note', '').lower()
-                    if (('bestaudio' in format_id or 'bestaudio' in format_note) and f.get('url') and f.get('protocol') in ('https', 'http') and f.get('acodec') != 'none'):
-                         best_format = f; logger.debug(f"{log_prefix} Found format marked 'bestaudio' (ID: {f.get('format_id', 'N/A')})."); break
+                    format_id = f.get('format_id', '').lower()
+                    format_note = f.get('format_note', '').lower()
+                    if (('bestaudio' in format_id or 'bestaudio' in format_note) and
+                        f.get('url') and
+                        f.get('protocol') in ('https', 'http') and
+                        f.get('acodec') != 'none'): # Ensure it has audio
+                         best_format = f
+                         logger.debug(f"{log_prefix} Found format marked 'bestaudio' (ID: {f.get('format_id', 'N/A')}).")
+                         break
+
+            # Fallback 2: Any audio-only format if preference failed
             if not best_format:
                 for f in formats:
-                    if (f.get('url') and f.get('protocol') in ('https', 'http') and f.get('acodec') != 'none' and f.get('vcodec') == 'none'):
-                        best_format = f; logger.debug(f"{log_prefix} Using fallback audio-only format (ID: {f.get('format_id', 'N/A')})."); break
+                    if (f.get('url') and
+                        f.get('protocol') in ('https', 'http') and
+                        f.get('acodec') != 'none' and
+                        f.get('vcodec') == 'none'):
+                        best_format = f
+                        logger.debug(f"{log_prefix} Using fallback audio-only format (ID: {f.get('format_id', 'N/A')}).")
+                        break
+
+            # Fallback 3: Last resort - any format with audio (might include video)
             if not best_format:
                 for f in formats:
-                     if (f.get('url') and f.get('protocol') in ('https', 'http') and f.get('acodec') != 'none'):
-                         best_format = f; logger.warning(f"{log_prefix} Using last resort format (might include video) (ID: {f.get('format_id', 'N/A')})."); break
+                     if (f.get('url') and
+                         f.get('protocol') in ('https', 'http') and
+                         f.get('acodec') != 'none'):
+                         best_format = f
+                         logger.warning(f"{log_prefix} Using last resort format (might include video) (ID: {f.get('format_id', 'N/A')}). Check FFMPEG_OPTIONS='-vn'.")
+                         break
+
+            # Extract URL from the selected format
             if best_format:
                 stream_url = best_format.get('url')
                 logger.debug(f"{log_prefix} Selected stream URL from format ID {best_format.get('format_id', 'N/A')}.")
-            else: logger.warning(f"{log_prefix} No suitable HTTP/S audio stream format found for '{title}'.")
-        elif 'requested_formats' in entry_to_search and not stream_url:
-             req_formats = entry_to_search.get('requested_formats')
-             if req_formats:
-                 fmt = req_formats[0]
-                 if fmt.get('url') and fmt.get('protocol') in ('https', 'http'):
-                     stream_url = fmt.get('url'); logger.debug(f"{log_prefix} Using stream URL from 'requested_formats'.")
+            else:
+                logger.warning(f"{log_prefix} No suitable HTTP/S audio stream format found in 'formats' for '{entry_title}'.")
 
+        # Priority 3: Check 'requested_formats' as a less common fallback
+        elif 'requested_formats' in processed_data and not stream_url:
+             req_formats = processed_data.get('requested_formats')
+             if req_formats:
+                 # Often contains audio and video, find the best audio-like one
+                 best_req_format = None
+                 for fmt in req_formats:
+                      if fmt.get('url') and fmt.get('protocol') in ('https', 'http') and fmt.get('acodec') != 'none' and fmt.get('vcodec') == 'none':
+                           best_req_format = fmt; break # Found audio only
+                 if not best_req_format: # Fallback to first one with audio if no audio-only
+                      for fmt in req_formats:
+                           if fmt.get('url') and fmt.get('protocol') in ('https', 'http') and fmt.get('acodec') != 'none':
+                                best_req_format = fmt; break
+                 if best_req_format:
+                     stream_url = best_req_format.get('url')
+                     logger.debug(f"{log_prefix} Using stream URL from 'requested_formats' (ID: {best_req_format.get('format_id', 'N/A')}).")
+
+        # --- Final Check and Song Creation ---
         logger.debug(f"{log_prefix} Final stream URL found: {'Yes' if stream_url else 'No'}")
         if not stream_url:
-            logger.warning(f"{log_prefix} Could not determine a stream URL for '{title}'. Skipping entry.")
-            return None
+            logger.warning(f"{log_prefix} Could not determine a stream URL for '{entry_title}'. Skipping entry.")
+            return None # Cannot play without a stream URL
+
         try:
-            webpage_url = processed_data.get('webpage_url') or processed_data.get('original_url', 'N/A')
+            # Use original_url if webpage_url is missing (better for source identification)
+            webpage_url = processed_data.get('webpage_url') or processed_data.get('original_url', entry_url or 'N/A')
+            final_title = processed_data.get('title', entry_title) # Get the most accurate title
             duration_sec = processed_data.get('duration')
             duration_int: Optional[int] = None
             if duration_sec is not None:
                 try: duration_int = int(duration_sec)
                 except (ValueError, TypeError): duration_int = None
-            song = Song(source_url=stream_url, title=processed_data.get('title', 'Unknown Title'), webpage_url=webpage_url, duration=duration_int, requester=requester)
+
+            song = Song(
+                source_url=stream_url,
+                title=final_title,
+                webpage_url=webpage_url,
+                duration=duration_int,
+                requester=requester
+            )
             logger.debug(f"{log_prefix} Successfully created Song object for: {song.title}")
             return song
         except Exception as e:
-            logger.error(f"{log_prefix} Error creating Song object for '{title}': {e}", exc_info=True)
+            logger.error(f"{log_prefix} Error creating Song object for '{final_title}': {e}", exc_info=True)
             return None
+    # --- End _process_entry ---
+
 
     async def _extract_info(self, query: str, requester: nextcord.Member) -> tuple[Optional[str], List[Song]]:
         """Extracts info using yt-dlp, handling playlists and single videos."""
@@ -886,41 +971,75 @@ class MusicCog(commands.Cog, name="Music"):
         songs_found: List[Song] = []
         playlist_title: Optional[str] = None
         error_code: Optional[str] = None
+
         try:
             loop = asyncio.get_event_loop()
+            # Initial call uses the main self.ydl instance with the modified YDL_OPTS.
+            # process=False makes the initial call faster, especially for playlists.
+            # The modified YDL_OPTS should ensure 'entries' is present for playlists now.
             partial_extract_initial = functools.partial(self.ydl.extract_info, query, download=False, process=False)
             initial_data = await loop.run_in_executor(None, partial_extract_initial)
+
             if not initial_data:
                 logger.warning(f"{log_prefix} Initial extraction returned no data for query: {query}")
                 return "err_nodata", []
+
+            # Check for playlist entries. This should now work correctly even with watch?v=...&list=... URLs
             if 'entries' in initial_data and initial_data.get('entries'):
                 playlist_title = initial_data.get('title', 'Unknown Playlist')
                 entries = initial_data['entries']
                 logger.info(f"{log_prefix} Detected playlist: '{playlist_title}' with {len(entries)} potential entries. Processing...")
+
+                # --- Process Playlist Entries Concurrently ---
                 processed_count = 0
                 original_count = len(entries)
+                tasks = []
                 for entry in entries:
-                    if entry:
-                        song = await self._process_entry(entry, requester)
-                        if song:
-                            songs_found.append(song)
-                            processed_count += 1
-                        else: logger.warning(f"{log_prefix} Failed to process playlist entry: {entry.get('title', entry.get('id', 'Unknown ID'))}")
-                    else: original_count -= 1
+                     if entry:
+                         # Schedule _process_entry for each valid entry.
+                         # _process_entry will handle potential re-extraction and find the stream URL.
+                         tasks.append(self._process_entry(entry, requester))
+                     else:
+                         # Don't count null entries towards the original count
+                         original_count -= 1
+
+                # Run processing in parallel and gather results
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for result in results:
+                    if isinstance(result, Song):
+                        songs_found.append(result)
+                        processed_count += 1
+                    elif isinstance(result, Exception):
+                         # Log errors from processing individual entries
+                         logger.warning(f"{log_prefix} Error processing a playlist entry: {result}")
+                    # else: _process_entry returned None (already logged warnings internally), do nothing here.
+
                 logger.info(f"{log_prefix} Playlist processing finished. Added {processed_count}/{original_count} valid songs.")
                 if not songs_found: error_code = "err_playlist_empty_or_fail"
+                # ---> END PLAYLIST HANDLING <---
+
             else:
+                # ---> SINGLE VIDEO HANDLING <---
                 logger.info(f"{log_prefix} Detected single entry. Processing directly...")
+                # Pass the initial_data directly to _process_entry.
+                # _process_entry handles re-extraction if needed (e.g., if initial data was unexpectedly shallow)
+                # and finds the stream URL.
                 song = await self._process_entry(initial_data, requester)
                 if song:
                     songs_found.append(song)
                     logger.info(f"{log_prefix} Successfully processed single entry: {song.title}")
                 else:
                     logger.warning(f"{log_prefix} Failed to process single entry.")
-                    error_code = "err_process_single_failed"
+                    # Try to get a title for context if available
+                    failed_title = initial_data.get('title', query)
+                    error_code = "err_process_single_failed" # Keep the specific error code
+                # ---> END SINGLE VIDEO HANDLING <---
 
+            # Return based on success or error code
             if error_code: return error_code, []
-            else: return playlist_title, songs_found
+            else: return playlist_title, songs_found # Return title if playlist, None otherwise for single/search
+
         except yt_dlp.utils.DownloadError as e:
             error_message = str(e).lower(); logger.error(f"{log_prefix} DownloadError during extraction: {e}")
             err_type = 'download_generic'
@@ -928,12 +1047,15 @@ class MusicCog(commands.Cog, name="Music"):
             elif "video unavailable" in error_message: err_type = 'unavailable'
             elif "private video" in error_message: err_type = 'private'
             elif "age restricted" in error_message: err_type = 'age_restricted'
+            elif "consent required" in error_message: err_type = 'consent_required' # Handle consent screens
+            elif "premieres in" in error_message: err_type = 'premiere' # Handle upcoming premieres
             elif "could not extract" in error_message: err_type = 'extract_failed'
-            elif "network error" in error_message or "webpage" in error_message: err_type = 'network'
+            elif "network error" in error_message or "webpage" in error_message or "connection" in error_message: err_type = 'network'
             return f"err_{err_type}", []
         except Exception as e:
             logger.error(f"{log_prefix} Unexpected error during extraction: {e}", exc_info=True)
             return "err_extraction_unexpected", []
+    # --- MODIFIED END ---
     # --- End Extraction Methods ---
 
     # --- Listener ---
@@ -997,13 +1119,14 @@ class MusicCog(commands.Cog, name="Music"):
                 logger.info(f"{log_prefix} Bot not connected. Attempting to join {ctx.author.voice.channel.name}.")
                 try:
                     await self.join_command(ctx) # Uses DMs for feedback
-                    state = self.guild_states.get(ctx.guild.id)
+                    state = self.guild_states.get(ctx.guild.id) # Re-get state in case join created it
                     if not state or not state.voice_client or not state.voice_client.is_connected():
                         logger.warning(f"{log_prefix} Failed to join voice channel after automatic attempt.")
+                        # DM might have already been sent by join_command on failure
                         return
                     else:
                          logger.info(f"{log_prefix} Successfully joined voice channel.")
-                         state.last_command_channel_id = ctx.channel.id
+                         state.last_command_channel_id = ctx.channel.id # Ensure channel ID is set after join
                 except Exception as e:
                      logger.error(f"{log_prefix} Error occurred invoking join command: {e}", exc_info=True)
                      await _send_dm_or_log(ctx.author, "An error occurred while trying to join the voice channel.")
@@ -1012,34 +1135,52 @@ class MusicCog(commands.Cog, name="Music"):
                 await _send_dm_or_log(ctx.author, "You need to be in a voice channel for me to join.")
                 return
         # --- Ensure User is in the Same VC ---
-        elif not ctx.author.voice or ctx.author.voice.channel != state.voice_client.channel:
+        elif not ctx.author.voice or not ctx.author.voice.channel or ctx.author.voice.channel != state.voice_client.channel:
              await _send_dm_or_log(ctx.author, f"You need to be in the same voice channel as me ({state.voice_client.channel.mention}).")
              return
 
         # --- Extract Info ---
         await ctx.trigger_typing()
+        extraction_result: Optional[tuple[Optional[str], List[Song]]] = None
+        error_code: Optional[str] = None
         playlist_title: Optional[str] = None
         songs_to_add: List[Song] = []
-        error_code: Optional[str] = None
+
         try:
-            result_tuple = await self._extract_info(query, ctx.author)
-            error_code, songs_found_or_title = result_tuple[0], result_tuple[1]
-            if isinstance(error_code, str) and error_code.startswith("err_"): songs_to_add = []
-            else: playlist_title = error_code; songs_to_add = songs_found_or_title; error_code = None
+            extraction_result = await self._extract_info(query, ctx.author)
+            # Correctly unpack: result_tuple[0] is EITHER playlist_title OR error_code
+            # result_tuple[1] is always the list of songs (potentially empty)
+            potential_title_or_error, songs_found = extraction_result
+
+            if isinstance(potential_title_or_error, str) and potential_title_or_error.startswith("err_"):
+                error_code = potential_title_or_error
+                songs_to_add = []
+            else:
+                # If it's not an error code, it must be the playlist title (or None for single tracks/searches)
+                playlist_title = potential_title_or_error
+                songs_to_add = songs_found
+                error_code = None # Explicitly clear error code if extraction was successful
+
         except Exception as e:
             logger.error(f"{log_prefix} Unexpected exception during _extract_info call: {e}", exc_info=True)
             error_code = "err_internal_extract"
+            songs_to_add = [] # Ensure songs list is empty on unexpected error
 
         # --- Handle Extraction Errors ---
         if error_code:
             error_map = {
                 'nodata': "Could not find any data for your query.",
-                'playlist_empty_or_fail': f"Could not add any songs from the playlist '{playlist_title}'. They might be unavailable or private.",
-                'process_single_failed': "Failed to process the requested track. It might be unsupported or unavailable.",
+                'playlist_empty_or_fail': f"Could not add any songs from the playlist. They might be unavailable, private, or processing failed.",
+                'process_single_failed': "Failed to process the requested track. It might be unsupported, unavailable, or private.",
                 'unsupported': "This URL or video format is not supported.",
-                'unavailable': "This video is unavailable.", 'private': "This video is private.",
-                'age_restricted': "This video is age-restricted.", 'extract_failed': "Failed to extract information for this item.",
-                'network': "A network error occurred while fetching information.", 'download_generic': "An error occurred while trying to access the media.",
+                'unavailable': "This video is unavailable.",
+                'private': "This video is private.",
+                'age_restricted': "This video is age-restricted and cannot be played.",
+                'consent_required': "This video requires consent and cannot be played automatically.",
+                'premiere': "This video is an upcoming premiere and cannot be played yet.",
+                'extract_failed': "Failed to extract information for this item.",
+                'network': "A network error occurred while fetching information. Please try again later.",
+                'download_generic': "An error occurred while trying to access the media.",
                 'extraction_unexpected': "An unexpected error occurred during information extraction.",
                 'internal_extract': "An internal error occurred while processing your request."
             }
@@ -1049,15 +1190,23 @@ class MusicCog(commands.Cog, name="Music"):
             return
 
         if not songs_to_add:
-            logger.warning(f"{log_prefix} Extraction succeeded but found no playable songs for query: {query}")
-            await _send_dm_or_log(ctx.author, f"Couldn't find any playable songs for '{query}'.")
+            # This case handles search misses or playlists where *all* items failed processing
+            logger.warning(f"{log_prefix} Extraction finished but found no playable songs for query: {query}")
+            # Give slightly different feedback if it was identified as a playlist vs. a single item/search
+            if playlist_title:
+                 await _send_dm_or_log(ctx.author, f"Couldn't add any playable songs from the playlist '{playlist_title}'.")
+            else:
+                 await _send_dm_or_log(ctx.author, f"Couldn't find any playable songs for '{query}'.")
             return
 
         # --- Add Songs to Queue ---
         logger.debug(f"{log_prefix} Extracted {len(songs_to_add)} songs.")
-        added_count = 0; start_position = 0; was_queue_empty = False
+        added_count = 0
+        start_position = 0
+        was_queue_empty = False
         async with state._lock:
             was_queue_empty = not state.queue and not state.current_song
+            # Calculate position *before* adding
             start_position = len(state.queue) + (1 if state.current_song else 0) + 1
             state.queue.extend(songs_to_add)
             added_count = len(songs_to_add)
@@ -1066,36 +1215,55 @@ class MusicCog(commands.Cog, name="Music"):
         # --- Send Feedback ---
         if added_count > 0:
             try:
-                if not was_queue_empty: # Send DM confirmation
-                    feedback_embed = nextcord.Embed(color=nextcord.Color.blue())
-                    first_song = songs_to_add[0]
-                    if playlist_title and added_count > 1:
-                        feedback_embed.title = "Playlist Queued"
-                        playlist_link = query if query.startswith('http') else None
-                        playlist_desc = f"**[{playlist_title}]({playlist_link})**" if playlist_link else f"**{playlist_title}**"
-                        feedback_embed.description = f"Added **{added_count}** songs from {playlist_desc} to the server queue."
-                    elif added_count == 1:
-                        feedback_embed.title = "Added to Queue"
-                        feedback_embed.description = f"[{first_song.title}]({first_song.webpage_url})"
-                        feedback_embed.add_field(name="Position", value=f"#{start_position}", inline=True)
-                        feedback_embed.add_field(name="Duration", value=first_song.format_duration(), inline=True)
-                    else:
-                         feedback_embed.title = "Songs Queued"
-                         feedback_embed.description = f"Added **{added_count}** songs to the server queue."
-                    requester_name = ctx.author.display_name
-                    requester_icon = ctx.author.display_avatar.url if ctx.author.display_avatar else None
-                    feedback_embed.set_footer(text=f"Requested by {requester_name}", icon_url=requester_icon)
+                first_song = songs_to_add[0] # Needed for single track feedback
+                feedback_embed = nextcord.Embed(color=nextcord.Color.blue())
+                requester_name = ctx.author.display_name
+                requester_icon = ctx.author.display_avatar.url if ctx.author.display_avatar else None
+                feedback_embed.set_footer(text=f"Requested by {requester_name}", icon_url=requester_icon)
+
+                if playlist_title and added_count > 1:
+                    feedback_embed.title = "Playlist Queued"
+                    # Try to make the title a link if the original query was a URL
+                    playlist_link = query if query.startswith(('http://', 'https://')) and 'list=' in query else None
+                    playlist_desc = f"**[{playlist_title}]({playlist_link})**" if playlist_link else f"**{playlist_title}**"
+                    feedback_embed.description = f"Added **{added_count}** songs from {playlist_desc} to the server queue."
+                    # Optionally show the first song added from the playlist
+                    feedback_embed.add_field(name="First Added", value=f"[{first_song.title}]({first_song.webpage_url}) at position #{start_position}", inline=False)
+
+                elif added_count == 1:
+                    feedback_embed.title = "Added to Queue"
+                    feedback_embed.description = f"[{first_song.title}]({first_song.webpage_url})"
+                    if not was_queue_empty: # Only show position if adding to an existing queue
+                         feedback_embed.add_field(name="Position", value=f"#{start_position}", inline=True)
+                    feedback_embed.add_field(name="Duration", value=first_song.format_duration(), inline=True)
+
+                else: # Multiple songs added but not identified as a playlist (e.g., search results if yt-dlp returns multiple)
+                     feedback_embed.title = "Songs Queued"
+                     feedback_embed.description = f"Added **{added_count}** songs to the server queue."
+                     feedback_embed.add_field(name="First Added", value=f"[{first_song.title}]({first_song.webpage_url}) at position #{start_position}", inline=False)
+
+                # Send feedback (DM if queue wasn't empty, react if it was)
+                if not was_queue_empty:
                     await _send_dm_or_log(ctx.author, embed=feedback_embed)
-                else: # React if queue was empty
+                else:
+                    # If the queue WAS empty, the "Now Playing" message will appear soon.
+                    # A simple reaction is sufficient confirmation.
                     await ctx.message.add_reaction('✅')
+
             except Exception as e:
                 logger.error(f"{log_prefix} Failed to send feedback DM/reaction: {e}", exc_info=True)
+                # Attempt to react as a fallback if DM fails
+                try: await ctx.message.add_reaction('👍')
+                except: pass
+
 
         # --- Ensure Playback Starts/Continues ---
-        if added_count > 0:
-            logger.debug(f"{log_prefix} Ensuring playback loop is running.")
-            state.start_playback_loop()
+        # This only needs to happen if songs were actually added
+        logger.debug(f"{log_prefix} Ensuring playback loop is running.")
+        state.start_playback_loop()
+
         logger.debug(f"{log_prefix} Play command finished processing.")
+
 
     @commands.command(name='join', aliases=['connect', 'j'], help="Connects the bot to your current voice channel.")
     @commands.guild_only()
@@ -1131,10 +1299,12 @@ class MusicCog(commands.Cog, name="Music"):
                     state.voice_client = await target_channel.connect()
                     await _send_dm_or_log(ctx.author, f"Connected to {target_channel.mention}.")
                     logger.info(f"{log_prefix} Successfully connected.")
+                    # Start the playback loop after connecting, even if queue is empty initially
                     state.start_playback_loop()
                 except asyncio.TimeoutError:
                     logger.error(f"{log_prefix} Timeout connecting to {target_channel.name}")
                     await _send_dm_or_log(ctx.author, f"Timed out trying to connect to {target_channel.mention}.")
+                    # Clean up state if connection failed
                     if ctx.guild.id in self.guild_states: del self.guild_states[ctx.guild.id]
                 except nextcord.errors.ClientException as e:
                      logger.error(f"{log_prefix} ClientException connecting to {target_channel.name}: {e}", exc_info=True)
@@ -1158,6 +1328,7 @@ class MusicCog(commands.Cog, name="Music"):
         logger.info(f"{log_prefix} Received leave command from {ctx.author.name}.")
         await ctx.message.add_reaction('👋')
         await state.cleanup()
+        # Remove state after cleanup
         if ctx.guild.id in self.guild_states:
             del self.guild_states[ctx.guild.id]
             logger.info(f"{log_prefix} GuildMusicState removed after cleanup.")
@@ -1171,13 +1342,21 @@ class MusicCog(commands.Cog, name="Music"):
         if not state or not state.voice_client or not state.voice_client.is_connected():
             await _send_dm_or_log(ctx.author, "I'm not connected or playing anything.")
             return
+        # User needs to be in the same channel to skip
+        if not ctx.author.voice or not ctx.author.voice.channel or ctx.author.voice.channel != state.voice_client.channel:
+             await _send_dm_or_log(ctx.author, f"You need to be in the same voice channel as me ({state.voice_client.channel.mention}) to skip.")
+             return
         vc = state.voice_client
         if not vc.is_playing() and not vc.is_paused():
             await _send_dm_or_log(ctx.author, "Nothing is currently playing to skip.")
             return
         logger.info(f"[Guild {ctx.guild.id}] Skip command received from {ctx.author.name}.")
-        vc.stop()
-        await ctx.message.add_reaction('⏭️')
+        current_title = state.current_song.title if state.current_song else "the current track"
+        await _send_dm_or_log(ctx.author, f"Skipping **{current_title}**.") # Send DM before stopping
+        vc.stop() # This triggers the 'after' callback which plays the next song
+        # Reaction confirms command receipt, DM gives more detail
+        try: await ctx.message.add_reaction('⏭️')
+        except: pass # Ignore if reaction fails
 
     @commands.command(name='stop', help="Stops playback completely and clears the queue.")
     @commands.guild_only()
@@ -1188,12 +1367,18 @@ class MusicCog(commands.Cog, name="Music"):
         if not state or not state.voice_client or not state.voice_client.is_connected():
             await _send_dm_or_log(ctx.author, "I'm not connected or playing anything.")
             return
+        # User needs to be in the same channel to stop
+        if not ctx.author.voice or not ctx.author.voice.channel or ctx.author.voice.channel != state.voice_client.channel:
+             await _send_dm_or_log(ctx.author, f"You need to be in the same voice channel as me ({state.voice_client.channel.mention}) to stop.")
+             return
         if not state.current_song and not state.queue:
             await _send_dm_or_log(ctx.author, "Nothing to stop - the player is idle and the queue is empty.")
             return
         logger.info(f"[Guild {ctx.guild.id}] Stop command received from {ctx.author.name}.")
+        await _send_dm_or_log(ctx.author, "Stopping playback and clearing the queue.")
         await state.stop_playback()
-        await ctx.message.add_reaction('⏹️')
+        try: await ctx.message.add_reaction('⏹️')
+        except: pass
 
     @commands.command(name='pause', help="Pauses the current song.")
     @commands.guild_only()
@@ -1204,6 +1389,10 @@ class MusicCog(commands.Cog, name="Music"):
         if not state or not state.voice_client or not state.voice_client.is_connected():
             await _send_dm_or_log(ctx.author, "I'm not connected or playing anything.")
             return
+        # User needs to be in the same channel to pause
+        if not ctx.author.voice or not ctx.author.voice.channel or ctx.author.voice.channel != state.voice_client.channel:
+             await _send_dm_or_log(ctx.author, f"You need to be in the same voice channel as me ({state.voice_client.channel.mention}) to pause.")
+             return
         vc = state.voice_client
         if vc.is_paused():
             await _send_dm_or_log(ctx.author, "Playback is already paused.")
@@ -1213,10 +1402,12 @@ class MusicCog(commands.Cog, name="Music"):
             return
         vc.pause()
         logger.info(f"[Guild {ctx.guild.id}] Pause command received from {ctx.author.name}.")
-        await ctx.message.add_reaction('⏸️')
+        await _send_dm_or_log(ctx.author, "Playback paused.")
+        try: await ctx.message.add_reaction('⏸️')
+        except: pass
         if state.current_player_view:
             state.current_player_view._update_buttons()
-            await state._update_player_message(view=state.current_player_view)
+            await state._update_player_message(view=state.current_player_view) # Update button appearance
 
     @commands.command(name='resume', aliases=['unpause'], help="Resumes the paused song.")
     @commands.guild_only()
@@ -1227,6 +1418,10 @@ class MusicCog(commands.Cog, name="Music"):
         if not state or not state.voice_client or not state.voice_client.is_connected():
             await _send_dm_or_log(ctx.author, "I'm not connected.")
             return
+        # User needs to be in the same channel to resume
+        if not ctx.author.voice or not ctx.author.voice.channel or ctx.author.voice.channel != state.voice_client.channel:
+             await _send_dm_or_log(ctx.author, f"You need to be in the same voice channel as me ({state.voice_client.channel.mention}) to resume.")
+             return
         vc = state.voice_client
         if vc.is_playing():
             await _send_dm_or_log(ctx.author, "Playback is already playing.")
@@ -1236,10 +1431,12 @@ class MusicCog(commands.Cog, name="Music"):
             return
         vc.resume()
         logger.info(f"[Guild {ctx.guild.id}] Resume command received from {ctx.author.name}.")
-        await ctx.message.add_reaction('▶️')
+        await _send_dm_or_log(ctx.author, "Playback resumed.")
+        try: await ctx.message.add_reaction('▶️')
+        except: pass
         if state.current_player_view:
             state.current_player_view._update_buttons()
-            await state._update_player_message(view=state.current_player_view)
+            await state._update_player_message(view=state.current_player_view) # Update button appearance
 
     @commands.command(name='queue', aliases=['q', 'nowplaying', 'np'], help="Shows the current song queue.")
     @commands.guild_only()
@@ -1250,7 +1447,7 @@ class MusicCog(commands.Cog, name="Music"):
          if not state:
              await ctx.send("The music player is not active in this server.")
              return
-         state.last_command_channel_id = ctx.channel.id
+         state.last_command_channel_id = ctx.channel.id # Update channel ID even for queue command
          embed = await self.build_queue_embed(state)
          if embed:
              await ctx.send(embed=embed)
@@ -1266,16 +1463,24 @@ class MusicCog(commands.Cog, name="Music"):
         if not state or not state.voice_client or not state.voice_client.is_connected():
             await _send_dm_or_log(ctx.author, "I'm not connected to voice.")
             return
+        # User needs to be in the same channel to change volume
+        if not ctx.author.voice or not ctx.author.voice.channel or ctx.author.voice.channel != state.voice_client.channel:
+             await _send_dm_or_log(ctx.author, f"You need to be in the same voice channel as me ({state.voice_client.channel.mention}) to change volume.")
+             return
         if not 0 <= volume <= 100:
             await _send_dm_or_log(ctx.author, "Please provide a volume level between 0 and 100.")
             return
         new_volume_float = volume / 100.0
         state.volume = new_volume_float
-        if state.voice_client.source and isinstance(state.voice_client.source, nextcord.PCMVolumeTransformer):
-            state.voice_client.source.volume = new_volume_float
+        # Apply volume immediately if possible
+        vc = state.voice_client
+        if vc.source and isinstance(vc.source, nextcord.PCMVolumeTransformer):
+            vc.source.volume = new_volume_float
             await _send_dm_or_log(ctx.author, f"Volume set to **{volume}%**.")
         else:
-             await _send_dm_or_log(ctx.author, f"Volume set to **{volume}%**. It will apply to the next song.")
+             # If source is not a volume transformer (e.g., nothing playing or just started)
+             # the volume is stored in state and will be applied when the next source is created.
+             await _send_dm_or_log(ctx.author, f"Volume will be set to **{volume}%** for the next song.")
         logger.info(f"[Guild {ctx.guild.id}] Volume set to {volume}% by {ctx.author.name}.")
 
     # --- Error Handler ---
@@ -1284,43 +1489,70 @@ class MusicCog(commands.Cog, name="Music"):
         log_prefix = f"[Guild {ctx.guild.id if ctx.guild else 'DM'}] CogCmdErrorHandler:"
         state = self.guild_states.get(ctx.guild.id) if ctx.guild else None
         if state and isinstance(ctx.channel, nextcord.abc.GuildChannel):
+            # Store channel ID even on error for potential future messages (e.g., auto-disconnect)
             state.last_command_channel_id = ctx.channel.id
 
+        # Ignore CommandNotFound, let the main bot handler deal with it if needed
         if isinstance(error, commands.CommandNotFound): return
 
         error_message = None
 
+        # Use elif for cleaner structure
         if isinstance(error, commands.CheckFailure):
             logger.warning(f"{log_prefix} Check failed for command '{ctx.command.qualified_name if ctx.command else 'N/A'}': {error}")
+            # More specific check failure messages could be added here if using custom checks
             error_message = "You don't have the necessary permissions or conditions met to use this command."
         elif isinstance(error, commands.MissingRequiredArgument):
-            error_message = f"Oops! You missed an argument: `{error.param.name}`. Use `?help {ctx.command.qualified_name}` for details."
+            param_name = error.param.name
+            error_message = f"Oops! You missed the argument: `{param_name}`. Use `?help {ctx.command.qualified_name}` for details."
         elif isinstance(error, commands.BadArgument):
-            error_message = f"Invalid argument provided. Use `?help {ctx.command.qualified_name}` for details."
+             # Try to provide context if possible (e.g., for volume command)
+             arg_name = ""
+             if ctx.command and ctx.current_argument:
+                 arg_name = f" for `{ctx.current_argument}`" # Might give the value that failed conversion
+             error_message = f"Invalid argument provided{arg_name}. Use `?help {ctx.command.qualified_name}` for details."
         elif isinstance(error, commands.GuildNotFound):
-             error_message = "This command can only be used in a server."
+             error_message = "This command can only be used in a server." # Should be caught by @commands.guild_only() anyway
         elif isinstance(error, commands.CommandInvokeError):
             original_error = error.original
             cmd_name = ctx.command.qualified_name if ctx.command else 'unknown command'
-            if isinstance(original_error, nextcord.HTTPException) and original_error.code == 50035 and 'embeds.0.fields' in str(original_error.text).lower():
-                logger.warning(f"{log_prefix} Embed length error likely from queue display.")
-                await ctx.send("The queue is too long to display fully!")
-                return
+
+            # Handle common specific errors from the original exception
+            if isinstance(original_error, nextcord.HTTPException):
+                if original_error.code == 50035 and 'embed' in str(original_error.text).lower():
+                    # Likely embed character limits (e.g., queue too long)
+                    logger.warning(f"{log_prefix} Embed length error likely from command '{cmd_name}'.")
+                    error_message = "The result is too long to display (e.g., the queue is too big)."
+                else:
+                    logger.error(f"{log_prefix} HTTP Exception during '{cmd_name}' (Code: {original_error.status}): {original_error.text}", exc_info=False)
+                    error_message = f"A Discord API error occurred (HTTP {original_error.status}). Please try again later."
             elif isinstance(original_error, nextcord.errors.ClientException):
-                 logger.error(f"{log_prefix} Voice ClientException during '{cmd_name}': {original_error}", exc_info=False)
+                 # Often related to voice state (already connected, not connected, etc.)
+                 logger.warning(f"{log_prefix} Voice ClientException during '{cmd_name}': {original_error}", exc_info=False)
                  error_message = f"A voice-related error occurred: {original_error}"
+            elif isinstance(original_error, yt_dlp.utils.DownloadError):
+                # This might occur if _extract_info raises it and it's not caught properly before invoking
+                 logger.error(f"{log_prefix} DownloadError reached command invoke for '{cmd_name}': {original_error}", exc_info=False)
+                 error_message = f"Failed to download information: {original_error}"
             else:
+                # Catch-all for other unexpected errors wrapped by CommandInvokeError
                 logger.error(f"{log_prefix} Error invoking command '{cmd_name}': {original_error.__class__.__name__}: {original_error}", exc_info=original_error)
                 error_message = f"An internal error occurred while running the `{cmd_name}` command. Please let the bot owner know."
         else:
+            # Handle errors not wrapped by CommandInvokeError
             cmd_name = ctx.command.qualified_name if ctx.command else 'unknown command'
             logger.error(f"{log_prefix} Unhandled error type '{type(error).__name__}' for command '{cmd_name}': {error}", exc_info=error)
             error_message = f"An unexpected error occurred: {type(error).__name__}"
 
+        # Send the error message via DM if possible
         if error_message and ctx.author:
             await _send_dm_or_log(ctx.author, message=error_message)
         elif error_message:
              logger.warning(f"{log_prefix} Could not DM error message as ctx.author was not available.")
+             # As a last resort, try sending to the context channel if no DM is possible
+             try: await ctx.send(f"An error occurred: {error_message}", delete_after=15.0)
+             except Exception: pass # Ignore if sending to channel also fails
+
 # --- End Error Handler ---
 
 # --- setup function (Keep the manual opus load version) ---
